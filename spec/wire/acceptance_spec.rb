@@ -44,20 +44,28 @@ RSpec.describe "wire: protocol acceptance" do
 
       define_standard_order
       order = Order.create!
+      # every racer starts from the SAME :pending snapshot, loaded before the
+      # threads run: a racer that re-read the record after the winner committed
+      # would see :paid and get InvalidTransition — a different, also honest
+      # outcome that is not what the CAS contract is about.
+      racers = Array.new(4) { Order.find(order.id) }
       outcomes = Array.new(4)
 
-      threads = 4.times.map do |thread_index|
+      threads = racers.each_with_index.map do |racer, thread_index|
         Thread.new do
           Order.connection_pool.with_connection do
-            Order.find(order.id).fire!(:pay, metadata: { amount: 1 })
+            racer.fire!(:pay, metadata: { amount: 1 })
             outcomes[thread_index] = :success
           rescue Statecraft::TransitionConflict
             outcomes[thread_index] = :conflict
+          rescue StandardError => unexpected
+            outcomes[thread_index] = unexpected
           end
         end
       end
       threads.each(&:join)
 
+      expect(outcomes.grep(StandardError)).to be_empty
       expect(outcomes.count(:success)).to eq(1)
       expect(outcomes.count(:conflict)).to eq(3)
       expect(OrderTransition.where(order_id: order.id).count).to eq(1)
