@@ -51,6 +51,8 @@ module Statecraft
         define_scopes(graph, configuration)
         define_reading_surface
         model.include(Pipeline::Surface)
+        model.include(Introspection)
+        define_verbs(graph) if @helpers
         configuration
       end
 
@@ -146,6 +148,17 @@ module Statecraft
         graph.states.each do |state_name|
           model.scope state_name, -> { where(column => state_name.to_s) }
         end
+      end
+
+      def define_verbs(graph)
+        verbs = Module.new do
+          graph.events.each_key do |event_name|
+            define_method("#{event_name}!") { |metadata: {}| fire!(event_name, metadata: metadata) }
+            define_method(event_name) { |metadata: {}| fire(event_name, metadata: metadata) }
+            define_method("may_#{event_name}?") { |metadata: {}| can_fire?(event_name, metadata: metadata) }
+          end
+        end
+        model.include(verbs)
       end
 
       def define_reading_surface

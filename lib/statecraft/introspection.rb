@@ -1,0 +1,78 @@
+# frozen_string_literal: true
+
+module Statecraft
+  # The record-facing questions: "would the guards pass if I fired this
+  # transition with these metadata right now". Normalization and freeze are
+  # identical to the pipeline's, so a guard that mutates metadata fails the
+  # same way in a check as in a transition, and the answer never diverges from
+  # what fire! would actually do. Every answer is a snapshot: CAS may still
+  # reject the transition later.
+  module Introspection
+    Availability = Struct.new(:to, :via, keyword_init: true)
+
+    def can_fire?(event_name, metadata: {})
+      graph = statecraft_graph
+      branches = graph.events[event_name.to_sym]
+      return false unless branches
+
+      edge = branches[statecraft_current_state]
+      return false unless edge
+
+      statecraft_guards_pass?(edge, event_name.to_sym, Metadata.normalize(metadata))
+    end
+
+    def available_events(metadata: {})
+      normalized = Metadata.normalize(metadata)
+      statecraft_graph.events.filter_map do |event_name, branches|
+        edge = branches[statecraft_current_state]
+        next unless edge
+
+        event_name if statecraft_guards_pass?(edge, event_name, normalized)
+      end
+    end
+
+    def available_transitions(metadata: {})
+      normalized = Metadata.normalize(metadata)
+      statecraft_graph.edges.filter_map do |(from, _to), edge|
+        next unless from == statecraft_current_state
+
+        via = statecraft_passable_via(edge, normalized)
+        Availability.new(to: edge.to, via: via) unless via.empty?
+      end
+    end
+
+    def transitioned_to?(state_name)
+      history.where(to_state: state_name.to_s).exists?
+    end
+
+    private
+
+    def statecraft_passable_via(edge, normalized_metadata)
+      via = edge.event_names.select do |event_name|
+        statecraft_guards_pass?(edge, event_name, normalized_metadata)
+      end
+      direct = statecraft_direct_legal?(edge) && statecraft_guards_pass?(edge, nil, normalized_metadata)
+      direct ? via + [:direct] : via
+    end
+
+    def statecraft_direct_legal?(edge)
+      edge.event_guards.values.all?(&:empty?)
+    end
+
+    def statecraft_guards_pass?(edge, event_name, normalized_metadata)
+      machine_instance = self.class.statecraft_mounting.machine_class.new
+      guards = edge.edge_guards + (event_name ? edge.event_guards.fetch(event_name, []) : [])
+      guards.all? do |guard|
+        Machine::Handlers.invoke(machine_instance, guard, self, normalized_metadata)
+      end
+    end
+
+    def statecraft_graph
+      self.class.statecraft_mounting.machine_class.finalize!
+    end
+
+    def statecraft_current_state
+      self[self.class.statecraft_mounting.column].to_s.to_sym
+    end
+  end
+end
