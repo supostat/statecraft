@@ -22,6 +22,7 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
+          cache-version: ar-${{ matrix.ar }}
       - run: bundle exec rspec
 
   test-postgres:
@@ -54,4 +55,5 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
+          cache-version: ar-${{ matrix.ar }}
       - run: bundle exec rspec
