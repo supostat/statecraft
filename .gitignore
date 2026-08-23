@@ -2,3 +2,6 @@
 CLAUDE.md
 docs
 Gemfile.lock
+design
+dist
+*.gem

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>statecraft — a state machine that trusts the column</title>
+
+<!-- Продакшен-страница по эталону design/pages/landing/landing.html.
+     Правки внешнего вида — сначала в эталоне, затем сюда; см. docs/SPEC-landing-site.md. -->
+<meta name="description" content="A state machine for ActiveRecord where the current state lives in a plain column guarded by compare-and-swap, and history is an append-only log with write-once metadata.">
+<meta property="og:title" content="statecraft — the state machine that trusts the column">
+<meta property="og:description" content="CAS-guarded transitions, zero-join state scopes, an append-only audit log. Built for ActiveRecord; Rails is optional.">
+<meta property="og:url" content="https://supostat.github.io/statecraft/">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://supostat.github.io/statecraft/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23101318'/%3E%3Ctext x='32' y='42' font-family='monospace' font-size='34' font-weight='700' text-anchor='middle' fill='%23e2504c'%3Es_%3C/text%3E%3C/svg%3E">
+<script>try { var savedTheme = localStorage.getItem("statecraftTheme"); if (savedTheme) document.documentElement.dataset.theme = savedTheme; } catch (storageUnavailable) {}</script>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  /* == base ==================================================== */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--text-base);
+    line-height: var(--leading-body);
+  }
+  .wrap { max-width: var(--measure-col); margin: 0 auto; padding-inline: var(--space-6); }
+  h1, h2 { color: var(--heading); line-height: var(--leading-tight); }
+  h2 { font-size: var(--text-2xl); margin: 0 0 var(--space-2); letter-spacing: -0.01em; }
+  a { color: var(--accent); }
+  section { padding-block: var(--space-16); }
+  section + section { border-top: var(--border-w) solid var(--border); }
+  .muted { color: var(--text-muted); }
+
+  /* eyebrow: моно-надзаголовок секции. РЕШЕНИЕ: нумерация секций держит
+     инженерный ритм страницы и ведёт взгляд без единой лишней картинки. */
+  .eyebrow {
+    font-family: var(--font-mono); font-size: var(--text-xs);
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 var(--space-3);
+  }
+  .lede { max-width: 68ch; margin: 0 0 var(--space-8); color: var(--text-muted); }
+
+  /* == code windows ============================================ -->
+     РЕШЕНИЕ: код — главный материал, каждый большой блок — «терминальное окно»
+     с титлбаром и именем файла. Тень нейтральная (--shadow-window), не цветной
+     glow. Страница никогда не скроллится вбок: pre скроллится внутри себя. */
+  .code-window {
+    background: var(--bg-code);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-window);
+    overflow: hidden;
+    text-align: left;
+  }
+  .code-title {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-bottom: var(--border-w) solid var(--border);
+    font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted);
+  }
+  .code-title .dots { display: inline-flex; gap: var(--space-1); }
+  .code-title .dots i {
+    width: var(--space-2); height: var(--space-2); border-radius: 50%;
+    background: var(--border); display: inline-block;
+  }
+  .code-window pre { border: 0; border-radius: 0; box-shadow: none; margin: 0; }
+  pre {
+    background: var(--bg-code);
+    padding: var(--space-4) var(--space-6);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    color: var(--code-text);
+    margin: 0;
+  }
+  code { font-family: var(--font-mono); }
+  p > code, li > code, dd > code {
+    background: var(--bg-raised);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
+    font-size: var(--text-sm);
+  }
+  .tok-k { color: var(--code-keyword); }
+  .tok-s { color: var(--code-symbol); }
+  .tok-str { color: var(--code-string); }
+  .tok-c { color: var(--code-comment); }
+
+  /* == header ================================================== */
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: color-mix(in oklab, var(--bg) 88%, transparent);
+    backdrop-filter: blur(var(--blur-header));
+    border-bottom: var(--border-w) solid var(--border);
+  }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; padding-block: var(--space-3); }
+  .brand { font-family: var(--font-mono); font-weight: 700; font-size: var(--text-lg); color: var(--heading); text-decoration: none; }
+  .brand .tick { color: var(--accent); }
+  .theme-toggle {
+    background: var(--bg-raised); color: var(--text);
+    border: var(--border-w) solid var(--border); border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-3); font: inherit; font-size: var(--text-sm); cursor: pointer;
+    transition: border-color 120ms ease;
+  }
+  .theme-toggle:hover { border-color: var(--text-muted); }
+
+  /* == hero ==================================================== -->
+     Blueprint-сетка фоном: линии цвета --grid-line с радиальной маской затухания.
+     Текстура, не градиент-текст и не свечение — инженерная миллиметровка. */
+  .hero {
+    position: relative;
+    text-align: center;
+    padding-block: var(--space-16);
+  }
+  /* сетка живёт на псевдоэлементе: маска затухания режет ТОЛЬКО фон, не контент */
+  .hero::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--grid-line) var(--border-w), transparent var(--border-w)),
+      linear-gradient(90deg, var(--grid-line) var(--border-w), transparent var(--border-w));
+    background-size: var(--space-8) var(--space-8);
+    -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 55%, transparent 100%);
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 55%, transparent 100%);
+  }
+  .hero .wrap { position: relative; }
+  .hero h1 { font-size: var(--text-hero); margin: 0 auto var(--space-4); max-width: 22ch; letter-spacing: -0.02em; }
+  .hero h1 .col { font-family: var(--font-mono); color: var(--accent); letter-spacing: 0; }
+  .hero .sub { max-width: 62ch; margin: 0 auto var(--space-6); font-size: var(--text-lg); color: var(--text-muted); }
+  .badges { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; margin: 0 0 var(--space-8); padding: 0; list-style: none; }
+  .badges li {
+    border: var(--border-w) solid var(--border); border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-3);
+    font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted);
+    background: var(--bg-raised);
+  }
+  .cta { display: flex; gap: var(--space-3); justify-content: center; margin-bottom: var(--space-12); }
+  .btn {
+    display: inline-block; text-decoration: none;
+    border-radius: var(--radius-sm); padding: var(--space-3) var(--space-8);
+    font-weight: 600;
+    transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+  }
+  .btn:active { transform: translateY(var(--border-w)); }
+  /* РЕШЕНИЕ (дозировка акцента): заливка акцентом — ровно одна на страницу, primary CTA. */
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); }
+  .btn-primary:hover { background: color-mix(in oklab, var(--accent) 88%, var(--heading)); }
+  .btn-secondary { border: var(--border-w) solid var(--border); color: var(--text); background: var(--bg-raised); }
+  .btn-secondary:hover { border-color: var(--text-muted); }
+  .hero .code-window { max-width: 56rem; margin: 0 auto; }
+
+  /* == why: numbered flow, no cards ============================ */
+  .why ol { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-6); counter-reset: why; }
+  .why li {
+    counter-increment: why;
+    display: grid; grid-template-columns: var(--space-16) 1fr; gap: var(--space-4);
+    align-items: start;
+  }
+  .why li::before {
+    content: "0" counter(why);
+    font-family: var(--font-mono); font-size: var(--text-xl); font-weight: 700;
+    color: var(--accent); line-height: var(--leading-tight);
+    border-top: var(--border-w-strong) solid var(--accent);
+    padding-top: var(--space-2);
+  }
+  .why b { color: var(--heading); display: block; margin-bottom: var(--space-1); font-size: var(--text-lg); }
+
+  /* == pipeline ladder: узлы на рельсе ========================= */
+  .ladder { position: relative; display: grid; gap: var(--space-2); padding-left: var(--space-8); }
+  .ladder::before {
+    content: ""; position: absolute; left: var(--space-3); top: var(--space-4); bottom: var(--space-4);
+    border-left: var(--border-w-strong) solid var(--border);
+  }
+  .rung {
+    position: relative;
+    display: grid; grid-template-columns: 15rem 1fr; gap: var(--space-6);
+    background: var(--bg-raised);
+    border: var(--border-w) solid var(--border); border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-6);
+  }
+  .rung::before {
+    content: ""; position: absolute; left: calc(-1 * var(--space-8) + var(--space-2)); top: 50%;
+    width: var(--space-3); height: var(--space-3); border-radius: 50%;
+    transform: translateY(-50%);
+    background: var(--bg); border: var(--border-w-strong) solid var(--accent);
+  }
+  .rung .step { font-family: var(--font-mono); color: var(--heading); font-weight: 600; }
+  .rung .step .n { color: var(--accent); margin-right: var(--space-2); }
+  .rung .what { color: var(--text-muted); font-size: var(--text-sm); align-self: center; }
+  /* сердце конвейера — CAS: единственная акцентная рамка на странице */
+  .rung-heart { border-color: var(--accent); background: var(--accent-soft); }
+  .rung-heart .what { color: var(--text); }
+
+  /* == race: дорожки против CAS-барьера ======================== -->
+     РЕШЕНИЕ: статусные цвета (--ok/--warn) — только здесь: это данные исходов,
+     не декор. Схема — чистый HTML+CSS: самодостаточно и темизируемо. */
+  .race { position: relative; display: grid; gap: var(--space-2); margin-block: var(--space-8); }
+  .race::before {
+    content: "CAS";
+    position: absolute; top: calc(-1 * var(--space-6)); bottom: calc(-1 * var(--space-6)); right: 17rem;
+    border-left: var(--border-w-strong) dashed var(--accent);
+    color: var(--accent); font-family: var(--font-mono); font-size: var(--text-xs);
+    padding-left: var(--space-2);
+  }
+  .lane {
+    display: grid; grid-template-columns: 8rem 1fr 15rem; gap: var(--space-4); align-items: center;
+    background: var(--bg-raised); border: var(--border-w) solid var(--border);
+    border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4);
+    font-family: var(--font-mono); font-size: var(--text-sm);
+  }
+  .lane .arrow {
+    border-top: var(--border-w-strong) dashed var(--border);
+    align-self: center; height: 0;
+  }
+  .lane-ok { background: var(--ok-soft); border-color: color-mix(in oklab, var(--ok) 45%, var(--border)); }
+  .outcome-ok { color: var(--ok); font-weight: 700; }
+  .lane-conflict { background: var(--warn-soft); }
+  .outcome-conflict { color: var(--warn); }
+  .practice-window + .practice-window { margin-top: var(--space-4); }
+  .race-note {
+    display: inline-block;
+    font-family: var(--font-mono); font-size: var(--text-sm); color: var(--heading);
+    background: var(--bg-raised); border: var(--border-w) solid var(--border);
+    border-radius: var(--radius-sm); padding: var(--space-1) var(--space-3);
+  }
+
+  /* == zig-zag sections ======================================== */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); align-items: center; }
+
+  /* == quick start ============================================= */
+  .qs-block { position: relative; margin-bottom: var(--space-4); }
+  .copy-btn {
+    position: absolute; top: var(--space-2); right: var(--space-2);
+    background: var(--bg-raised); color: var(--text-muted);
+    border: var(--border-w) solid var(--border); border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-2); font: inherit; font-size: var(--text-xs); cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+  /* == feature grid 2×3 ======================================== */
+  .features { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+  .feature {
+    border: var(--border-w) solid var(--border); border-radius: var(--radius-md);
+    padding: var(--space-6); background: var(--bg-raised);
+    transition: border-color 120ms ease, transform 120ms ease;
+  }
+  .feature:hover { border-color: var(--text-muted); transform: translateY(calc(-1 * var(--border-w-strong))); }
+  .feature .tag {
+    font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent);
+    display: block; margin-bottom: var(--space-2);
+  }
+  .feature h3 { margin: 0 0 var(--space-2); font-size: var(--text-base); color: var(--heading); }
+  .feature p { margin: 0; font-size: var(--text-sm); color: var(--text-muted); }
+  .feature code { font-size: var(--text-xs); }
+
+  /* == footer ================================================== */
+  footer { border-top: var(--border-w) solid var(--border); padding-block: var(--space-12); }
+  footer .wrap { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); font-size: var(--text-sm); }
+  footer nav { display: flex; gap: var(--space-6); }
+
+  /* == focus visibility ======================================== */
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: var(--focus-ring) solid var(--accent); outline-offset: var(--focus-offset);
+  }
+
+  /* == mobile ================================================== -->
+     ПРЕДЕЛ: var() не читается внутри @media — брейкпоинт остаётся сырым px, см. DESIGN.md. */
+  @media (max-width: 720px) /* limit: var(--breakpoint) is unsupported inside @media, see DESIGN.md */ {
+    section { padding-block: var(--space-12); }
+    .duo { grid-template-columns: 1fr; gap: var(--space-6); }
+    .why li { grid-template-columns: 1fr; gap: var(--space-2); }
+    .why li::before { border-top: 0; border-left: var(--border-w-strong) solid var(--accent); padding: 0 0 0 var(--space-2); }
+    .rung { grid-template-columns: 1fr; gap: var(--space-1); }
+    .race::before { display: none; }
+    .lane { grid-template-columns: 1fr; gap: var(--space-1); }
+    .lane .arrow { display: none; }
+    .features { grid-template-columns: 1fr; }
+    .cta { flex-direction: column; align-items: stretch; }
+  }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#">statecraft<span class="tick">_</span></a>
+    <!-- П2 (принято): ручной переключатель темы; в продакшене дефолт — prefers-color-scheme. -->
+    <button class="theme-toggle" onclick="toggleTheme()">theme</button>
+  </div>
+</header>
+
+<!-- ============ HERO: код — первый экран ============ -->
+<section class="hero">
+  <div class="wrap">
+    <h1>The state machine that trusts <span class="col">the column</span></h1>
+    <p class="sub">Current state lives in a plain column guarded by compare-and-swap.
+       History is an append-only log with write-once metadata.
+       Built for ActiveRecord; Rails is optional.</p>
+    <ul class="badges">
+      <li>MIT</li><li>gem v0.1.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
+    </ul>
+    <p class="cta">
+      <a class="btn btn-primary" href="#quick-start">Get started</a>
+      <a class="btn btn-secondary" href="https://github.com/supostat/statecraft">GitHub</a>
+    </p>
+
+    <div class="code-window">
+      <div class="code-title"><span class="dots"><i></i><i></i><i></i></span>app/state_machines/order_flow.rb</div>
+      <pre><code><span class="tok-k">class</span> OrderFlow &lt; ApplicationMachine
+  state <span class="tok-s">:pending</span>, initial: <span class="tok-k">true</span>
+  state <span class="tok-s">:paid</span>
+  state <span class="tok-s">:cancelled</span>
+
+  event <span class="tok-s">:pay</span>, from: <span class="tok-s">:pending</span>, to: <span class="tok-s">:paid</span>, guard: <span class="tok-s">:payable?</span>
+  transition from: <span class="tok-s">:pending</span>, to: <span class="tok-s">:cancelled</span>
+
+  after_commit <span class="tok-s">:enqueue_receipt</span>, event: [<span class="tok-s">:pay</span>]
+
+  <span class="tok-k">private</span>
+
+  <span class="tok-k">def</span> payable?(order, metadata)
+    metadata[<span class="tok-str">"amount"</span>].to_i.positive?
+  <span class="tok-k">end</span>
+<span class="tok-k">end</span>
+
+order.pay!(metadata: { amount: <span class="tok-str">100</span> })  <span class="tok-c"># =&gt; the created OrderTransition row</span>
+Order.paid.count                          <span class="tok-c"># plain WHERE, zero joins</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHY ============ -->
+<section class="why">
+  <div class="wrap">
+    <p class="eyebrow">01 · why</p>
+    <h2>Why another state machine</h2>
+    <p class="lede">Statesman and AASM taught a generation of Rails apps two different pains.
+       statecraft keeps their ergonomics and removes the architecture that caused the pain.</p>
+    <ol>
+      <li><div><b>The column is the truth.</b> <code>in_state?</code> and scopes are a flat
+          <code>WHERE</code> on an indexed column: zero joins. No Statesman-style
+          <code>most_recent</code> rows, no log-derived current state.</div></li>
+      <li><div><b>Concurrency by compare-and-swap.</b> Of N parallel writers exactly one wins;
+          the rest get a deterministic <code>TransitionConflict</code>, and the log records
+          exactly one row.</div></li>
+      <li><div><b>The log is a first-class audit.</b> Append-only, write-once jsonb metadata:
+          what the guards checked is byte-for-byte what the log stored.</div></li>
+      <li><div><b>Nothing new to learn.</b> <code>after_commit</code> follows Active Record
+          transaction-callback semantics everywhere, including transactional tests. AASM-style
+          in-memory surprises are not part of the deal.</div></li>
+      <li><div><b>An ActiveRecord gem, not a Rails gem.</b> No railties at runtime, enforced by
+          a test rather than a promise. Anything that can <code>establish_connection</code>
+          gets the full pipeline.</div></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ PIPELINE ============ -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">02 · pipeline</p>
+    <h2>One strict pipeline</h2>
+    <p class="lede">Every transition walks the same six steps. No other write path exists.</p>
+    <div class="ladder">
+      <div class="rung"><span class="step"><span class="n">1</span>persisted?</span>
+        <span class="what">unsaved records cannot transition: initial state comes from the column default</span></div>
+      <div class="rung"><span class="step"><span class="n">2</span>normalize + freeze</span>
+        <span class="what">metadata round-trips through jsonb and is deep-frozen: guards see what the log will store</span></div>
+      <div class="rung"><span class="step"><span class="n">3</span>guards</span>
+        <span class="what">edge guards always, event guards on their event; pure predicates, enforced rather than declared</span></div>
+      <div class="rung rung-heart"><span class="step"><span class="n">4</span>CAS update</span>
+        <span class="what"><code>UPDATE … WHERE state = expected</code>; zero rows means somebody else won</span></div>
+      <div class="rung"><span class="step"><span class="n">5</span>log INSERT</span>
+        <span class="what">same transaction, past the log model's validations and callbacks</span></div>
+      <div class="rung"><span class="step"><span class="n">6</span>after_commit</span>
+        <span class="what">registered on the outermost real commit. Active Record semantics, no exceptions</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RACE ============ -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">03 · concurrency</p>
+    <h2>Three writers, one truth</h2>
+    <p class="lede">Same record, same moment. The CAS statement is the referee: no locks needed
+       for correctness, no lost updates, no double logging.</p>
+    <div class="race" role="img" aria-label="Three concurrent writers race to pay the same order; one succeeds, two get TransitionConflict, exactly one log row is written">
+      <div class="lane lane-ok"><span>writer A</span><span class="arrow"></span><span class="outcome-ok">→ paid ✓</span></div>
+      <div class="lane lane-conflict"><span>writer B</span><span class="arrow"></span><span class="outcome-conflict">→ TransitionConflict</span></div>
+      <div class="lane lane-conflict"><span>writer C</span><span class="arrow"></span><span class="outcome-conflict">→ TransitionConflict</span></div>
+    </div>
+    <p><span class="race-note">log rows written: exactly 1</span></p>
+    <p>A rescued conflict is clean by construction: the savepoint has already rolled the
+       pipeline back, your outer transaction survives, and you retry from fresh state, or
+       take another branch.</p>
+  </div>
+</section>
+
+<!-- ============ AUDIT ============ -->
+<section>
+  <div class="wrap duo">
+    <div>
+      <p class="eyebrow">04 · audit</p>
+      <h2>An audit you can put in front of a lawyer</h2>
+      <p>Every transition appends one row: from, to, the event (or an explicit
+         <code>event: nil</code> for audited bypasses), and write-once metadata that survived
+         the same jsonb round-trip the guards validated.</p>
+      <p>The log model is a read-model: persisted rows refuse <code>update!</code> and
+         <code>destroy</code>; the pipeline is the single writer.</p>
+    </div>
+    <div class="code-window">
+      <div class="code-title"><span class="dots"><i></i><i></i><i></i></span>rails console</div>
+      <pre><code>order.history.last
+<span class="tok-c"># =&gt; #&lt;OrderTransition</span>
+<span class="tok-c">#     from_state: <span class="tok-str">"pending"</span>, to_state: <span class="tok-str">"paid"</span>,</span>
+<span class="tok-c">#     event: <span class="tok-str">"pay"</span>,</span>
+<span class="tok-c">#     metadata: { <span class="tok-str">"amount"</span> =&gt; 100 },</span>
+<span class="tok-c">#     created_at: …&gt;</span>
+
+order.transitioned_to?(<span class="tok-s">:paid</span>)  <span class="tok-c"># =&gt; true, strictly log-based</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ IN PRACTICE: полноценный сервис ============ -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">05 · in practice</p>
+    <h2>A payment service, end to end</h2>
+    <p class="lede">The division of labor: the machine owns invariants and reactions to facts;
+       the model mounts it in one line; the service orchestrates the outside world. External
+       effects stay outside transactions, the transition records the fact, a lost race is
+       compensated and re-read.</p>
+
+    <div class="code-window practice-window">
+      <div class="code-title"><span class="dots"><i></i><i></i><i></i></span>app/state_machines/order_flow.rb</div>
+      <pre><code><span class="tok-k">class</span> OrderFlow &lt; ApplicationMachine
+  state <span class="tok-s">:pending</span>, initial: <span class="tok-k">true</span>
+  state <span class="tok-s">:paid</span>
+  state <span class="tok-s">:cancelled</span>
+
+  event <span class="tok-s">:pay</span>, from: <span class="tok-s">:pending</span>, to: <span class="tok-s">:paid</span>, guard: <span class="tok-s">:charged_for_full_amount?</span>
+  event <span class="tok-s">:cancel</span>, from: <span class="tok-s">:pending</span>, to: <span class="tok-s">:cancelled</span>
+
+  after_commit <span class="tok-s">:enqueue_receipt</span>, event: [<span class="tok-s">:pay</span>]
+
+  <span class="tok-k">private</span>
+
+  <span class="tok-c"># the machine's invariant: the recorded fact must match the order,</span>
+  <span class="tok-c"># on every path to :paid — console included</span>
+  <span class="tok-k">def</span> charged_for_full_amount?(order, metadata)
+    metadata[<span class="tok-str">"amount_cents"</span>].to_i == order.total_cents
+  <span class="tok-k">end</span>
+
+  <span class="tok-k">def</span> enqueue_receipt(order, transition)
+    ReceiptJob.perform_later(order.id, transition.log_record.id)
+  <span class="tok-k">end</span>
+<span class="tok-k">end</span></code></pre>
+    </div>
+
+    <div class="code-window practice-window">
+      <div class="code-title"><span class="dots"><i></i><i></i><i></i></span>app/models/order.rb</div>
+      <pre><code><span class="tok-k">class</span> Order &lt; ApplicationRecord
+  state_machine OrderFlow, changed_at: <span class="tok-k">true</span>, helpers: <span class="tok-k">true</span>, scopes: <span class="tok-k">true</span>
+<span class="tok-k">end</span></code></pre>
+    </div>
+
+    <div class="code-window practice-window">
+      <div class="code-title"><span class="dots"><i></i><i></i><i></i></span>app/services/pay_order.rb</div>
+      <pre><code><span class="tok-k">class</span> PayOrder
+  Result = Data.define(<span class="tok-s">:paid?</span>, <span class="tok-s">:order</span>, <span class="tok-s">:failure</span>)
+
+  <span class="tok-k">def</span> initialize(gateway: PaymentGateway.new)
+    @gateway = gateway
+  <span class="tok-k">end</span>
+
+  <span class="tok-k">def</span> call(order, card_token:)
+    intent = { amount_cents: order.total_cents }
+
+    <span class="tok-c"># a cheap honest refusal before the external call — a snapshot, not a guarantee</span>
+    <span class="tok-k">return</span> Result.new(<span class="tok-k">false</span>, order, <span class="tok-s">:not_payable</span>) <span class="tok-k">unless</span> order.may_pay?(metadata: intent)
+
+    <span class="tok-c"># the external effect lives outside any transaction, idempotent per order</span>
+    charge = @gateway.charge(card_token, amount: order.total_cents,
+                             idempotency_key: <span class="tok-str">"order-#{order.id}"</span>)
+
+    <span class="tok-c"># the transition records the fact; references in metadata, never PANs</span>
+    order.pay!(metadata: intent.merge(charge_id: charge.id))
+    Result.new(<span class="tok-k">true</span>, order, <span class="tok-k">nil</span>)
+
+  <span class="tok-k">rescue</span> Statecraft::GuardFailed
+    @gateway.refund(charge.id) <span class="tok-k">if</span> charge
+    Result.new(<span class="tok-k">false</span>, order, <span class="tok-s">:not_payable</span>)
+  <span class="tok-k">rescue</span> Statecraft::TransitionConflict
+    <span class="tok-c"># somebody won the race — compensate, then read reality</span>
+    @gateway.refund(charge.id)
+    order.reload
+    Result.new(order.in_state?(<span class="tok-s">:paid</span>), order, order.in_state?(<span class="tok-s">:paid</span>) ? <span class="tok-k">nil</span> : <span class="tok-s">:lost_race</span>)
+  <span class="tok-k">end</span>
+<span class="tok-k">end</span></code></pre>
+    </div>
+    <p class="muted">The receipt goes out from the machine's <code>after_commit</code> with a
+       reference to the exact audit row, and only after the outermost real commit: a worker
+       never races an invisible record.</p>
+  </div>
+</section>
+
+<!-- ============ QUICK START ============ -->
+<section id="quick-start">
+  <div class="wrap">
+    <p class="eyebrow">06 · quick start</p>
+    <h2>Two commands in</h2>
+    <!-- П1 (принято): copy-кнопки. Инлайн-JS, без зависимостей. -->
+    <div class="qs-block">
+      <div class="code-window"><pre><code>bundle add statecraft</code></pre></div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <div class="qs-block">
+      <div class="code-window"><pre><code>bin/rails generate statecraft:machine Order</code></pre></div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <p class="muted">The generator creates the migration — state column, cascade-FK log table,
+       a CHECK constraint for fresh tables — plus the machine class, the readonly log model,
+       and mounts it all into your model.</p>
+  </div>
+</section>
+
+<!-- ============ EVERYTHING ELSE ============ -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">07 · in the box</p>
+    <h2>Also in the box</h2>
+    <div class="features">
+      <div class="feature"><span class="tag">introspection</span><h3>Honest availability answers</h3>
+        <p><code>available_transitions</code> tells you where <em>and how</em>:
+           via events whose guards pass, plus <code>:direct</code> for unguarded edges.</p></div>
+      <div class="feature"><span class="tag">telemetry</span><h3>Conflict rates on a dashboard</h3>
+        <p><code>transition.statecraft</code> and <code>transition_failed.statecraft</code>
+           with the failure reason: contention becomes a metric, not a mystery.</p></div>
+      <div class="feature"><span class="tag">bypass</span><h3>Explicit escape hatch</h3>
+        <p>Direct transitions over event-guarded edges are refused; the bypass is
+           explicit and logged as <code>event: nil</code>.</p></div>
+      <div class="feature"><span class="tag">sti</span><h3>Inheritance that just works</h3>
+        <p>Mount on the base class; subclasses inherit the machine, helpers and scopes,
+           and guards receive the actual subclass.</p></div>
+      <div class="feature"><span class="tag">multi-db</span><h3>The log lives next to its model</h3>
+        <p>Connection identity is checked at mounting; shards follow automatically.</p></div>
+      <div class="feature"><span class="tag">chains</span><h3>Chains with a ceiling</h3>
+        <p>Launch the next transition from <code>after_transition</code>; accidental cycles
+           die loudly at depth 16 with the chain printed.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#">statecraft<span class="tick">_</span></a>
+    <nav>
+      <a href="https://github.com/supostat/statecraft">GitHub</a>
+      <a href="https://rubygems.org/gems/statecraft">RubyGems</a>
+      <span class="muted">MIT License</span>
+    </nav>
+  </div>
+</footer>
+
+
+<script>
+  function toggleTheme() {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const current = document.documentElement.dataset.theme || (prefersDark ? "dark" : "light");
+    const next = current === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("statecraftTheme", next); } catch (storageUnavailable) {}
+  }
+
+  function copyCode(button) {
+    const code = button.parentElement.querySelector("code").innerText;
+    navigator.clipboard.writeText(code).then(() => {
+      button.textContent = "copied";
+      setTimeout(() => { button.textContent = "copy"; }, 1200);
+    });
+  }
+</script>
+
+</body>
+</html>
