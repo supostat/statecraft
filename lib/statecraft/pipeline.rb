@@ -16,6 +16,22 @@ module Statecraft
   class Pipeline
     Transition = Struct.new(:from, :to, :event, :metadata, :log_record, keyword_init: true)
 
+    # One frame per pipeline currently running in this execution context. The
+    # key identifies the record across instances — (base_class name, id,
+    # machine) — so re-entering the same record's pipeline between its start
+    # and the completion of CAS (guards, before_transition) is caught even
+    # through a freshly loaded instance. cas_done flips right after the CAS
+    # statement: chains launched from after_transition are legal by
+    # construction.
+    Frame = Struct.new(:key, :label, :cas_done, keyword_init: true)
+
+    STACK_KEY = :statecraft_transition_stack
+    MAX_CHAIN_DEPTH = 16
+
+    def self.transition_stack
+      ActiveSupport::IsolatedExecutionState[STACK_KEY] ||= []
+    end
+
     # The record-facing API mixed into the model at mounting time. Bang
     # variants return the created log record; non-bang variants return it too,
     # or false on GuardFailed / InvalidTransition. Programmer errors and
@@ -73,12 +89,17 @@ module Statecraft
       metadata = Metadata.normalize(raw_metadata)
       edge, event, bypass = edge_resolver.call(current_state)
       assert_clean_when_locked(edge)
-      log_record = execute_transaction(edge, event, bypass, metadata, edge_resolver)
+      frame = open_frame(edge, event)
+      begin
+        log_record = execute_transaction(edge, event, bypass, metadata, edge_resolver, frame)
+      ensure
+        Pipeline.transition_stack.delete(frame)
+      end
       register_after_commit_callbacks(log_record, metadata)
       log_record
     end
 
-    def execute_transaction(edge, event, bypass, metadata, edge_resolver)
+    def execute_transaction(edge, event, bypass, metadata, edge_resolver, frame)
       base_class.transaction(requires_new: true) do
         if edge.lock
           record.reload(lock: true)
@@ -91,11 +112,33 @@ module Statecraft
         )
         run_callbacks(:before_transition, context)
         cas_update!(edge, transition_time)
+        frame.cas_done = true
         context.log_record = insert_log_row(edge, event, metadata, transition_time)
         sync_record(edge, transition_time)
         run_callbacks(:after_transition, context)
         context.log_record
       end
+    end
+
+    def open_frame(edge, event)
+      stack = Pipeline.transition_stack
+      frame_key = [base_class.name, record.id, configuration.machine_class]
+      pending_same_record = stack.find { |open| open.key == frame_key && !open.cas_done }
+      raise NestedTransitionError.new(record: record) if pending_same_record
+
+      if stack.length >= MAX_CHAIN_DEPTH
+        chain = stack.map(&:label) + [frame_label(edge, event)]
+        raise ChainDepthExceeded.new(chain: chain)
+      end
+
+      frame = Frame.new(key: frame_key, label: frame_label(edge, event), cas_done: false)
+      stack.push(frame)
+      frame
+    end
+
+    def frame_label(edge, event)
+      via = event ? " (#{event})" : ""
+      "#{base_class.name}##{record.id}: #{edge.from} -> #{edge.to}#{via}"
     end
 
     def current_state
