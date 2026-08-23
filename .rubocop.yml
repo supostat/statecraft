@@ -26,6 +26,11 @@ Metrics/ClassLength:
 Metrics/AbcSize:
   Max: 25
 
+# The mount macro's surface is a deliberate set of keyword options fixed by the
+# design; keywords document themselves.
+Metrics/ParameterLists:
+  Max: 8
+
 # Class-level state of the DSL mixin lives on the USER's machine class, so the
 # ivar names carry a statecraft_ prefix to stay out of the host's namespace.
 Naming/MemoizedInstanceVariableName:

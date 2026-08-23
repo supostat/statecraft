@@ -110,15 +110,9 @@ module Statecraft
     def initialize(model:, log_class:)
       @model = model
       @log_class = log_class
-      super("#{log_class.name} does not share #{model.name}'s connection class; " \
-            "make the log model inherit from #{connection_owner_name(model)}")
-    end
-
-    private
-
-    def connection_owner_name(model)
-      owner = model.ancestors.find { |ancestor| ancestor.respond_to?(:connection_class?) && ancestor.connection_class? }
-      owner ? owner.name : "the model's connection-owning ancestor"
+      super("#{log_class.name} does not share #{model.name}'s connection " \
+            "(#{log_class.connection_specification_name} vs #{model.connection_specification_name}); " \
+            "make the log model inherit from the model's connection-owning ancestor")
     end
   end
 end
