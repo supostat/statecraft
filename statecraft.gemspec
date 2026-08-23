@@ -13,14 +13,21 @@ Gem::Specification.new do |spec|
                      "guarded by CAS updates, history is an append-only per-model log with " \
                      "write-once metadata, guards are event-aware, and bypass is explicit."
   spec.license = "MIT"
+  spec.homepage = "https://supostat.github.io/statecraft/"
 
   spec.required_ruby_version = ">= 3.3"
 
-  spec.files = Dir["lib/**/*.rb", "LICENSE.txt", "README.md"]
+  # .tt too: the generator templates are part of the shipped gem, and a
+  # *.rb-only mask silently published a generator without them.
+  spec.files = Dir["lib/**/*.{rb,tt}", "LICENSE.txt", "README.md"]
   spec.require_paths = ["lib"]
 
   spec.add_dependency "activerecord", ">= 7.2", "< 9"
   spec.add_dependency "activesupport", ">= 7.2", "< 9"
 
+  spec.metadata["homepage_uri"] = spec.homepage
+  spec.metadata["source_code_uri"] = "https://github.com/supostat/statecraft"
+  spec.metadata["changelog_uri"] = "https://github.com/supostat/statecraft/releases"
+  spec.metadata["bug_tracker_uri"] = "https://github.com/supostat/statecraft/issues"
   spec.metadata["rubygems_mfa_required"] = "true"
 end
