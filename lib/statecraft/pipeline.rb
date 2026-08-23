@@ -87,21 +87,45 @@ module Statecraft
       raise UnsavedRecordError.new(record: record) unless record.persisted?
 
       metadata = Metadata.normalize(raw_metadata)
-      edge, event, bypass = edge_resolver.call(current_state)
-      assert_clean_when_locked(edge)
-      frame = open_frame(edge, event)
+      started_at = Time.current
       begin
-        log_record = execute_transaction(edge, event, bypass, metadata, edge_resolver, frame)
-      ensure
-        Pipeline.transition_stack.delete(frame)
+        edge, event, bypass = edge_resolver.call(current_state)
+        assert_clean_when_locked(edge)
+        frame = open_frame(edge, event)
+        begin
+          log_record = execute_transaction(edge, event, bypass, metadata, edge_resolver, frame)
+        ensure
+          Pipeline.transition_stack.delete(frame)
+        end
+      rescue GuardFailed => guard_error
+        publish_failure(started_at, :guard_failed, guard: guard_error.guard)
+        raise
+      rescue InvalidTransition => invalid_error
+        publish_failure(started_at, :invalid_transition, requested: invalid_error.requested)
+        raise
+      rescue TransitionConflict => conflict_error
+        publish_failure(started_at, :conflict, expected_from: conflict_error.expected_from)
+        raise
       end
+      Instrumentation.publish_transition(
+        started_at: started_at, record: record,
+        machine_class: configuration.machine_class, log_record: log_record
+      )
       register_after_commit_callbacks(log_record, metadata)
       log_record
+    end
+
+    def publish_failure(started_at, reason, details)
+      Instrumentation.publish_failure(
+        started_at: started_at, record: record,
+        machine_class: configuration.machine_class, reason: reason, details: details
+      )
     end
 
     def execute_transaction(edge, event, bypass, metadata, edge_resolver, frame)
       base_class.transaction(requires_new: true) do
         if edge.lock
+          warn_when_row_locking_unavailable
           record.reload(lock: true)
           edge, event, bypass = edge_resolver.call(current_state)
         end
@@ -283,6 +307,16 @@ module Statecraft
               "add the column or drop the changed_at option"
       end
       column
+    end
+
+    def warn_when_row_locking_unavailable
+      return unless base_class.connection.adapter_name.match?(/sqlite/i)
+
+      Statecraft.warn(
+        [configuration.machine_class.name, :sqlite_row_lock],
+        "row locking unavailable on sqlite (machine #{configuration.machine_class.name}); " \
+        "the reload still runs, but lock: true guarantees require PostgreSQL"
+      )
     end
 
     def base_class
