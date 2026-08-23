@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-sqlite:
+    name: sqlite · ruby ${{ matrix.ruby }} · ar ${{ matrix.ar }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["3.3", "3.4"]
+        ar: ["7.2", "8.0", "8.1"]
+    env:
+      AR_VERSION: ${{ matrix.ar }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: bundle exec rspec
+
+  test-postgres:
+    name: postgres · ruby ${{ matrix.ruby }} · ar ${{ matrix.ar }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["3.3", "3.4"]
+        ar: ["7.2", "8.0", "8.1"]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: statecraft
+          POSTGRES_PASSWORD: statecraft
+          POSTGRES_DB: statecraft_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U statecraft"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AR_VERSION: ${{ matrix.ar }}
+      DATABASE_URL: postgres://statecraft:statecraft@localhost:5432/statecraft_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: bundle exec rspec

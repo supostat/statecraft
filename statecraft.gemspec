@@ -1,0 +1,26 @@
+# frozen_string_literal: true
+
+require_relative "lib/statecraft/version"
+
+Gem::Specification.new do |spec|
+  spec.name = "statecraft"
+  spec.version = Statecraft::VERSION
+  spec.authors = ["Igor Pugachev"]
+  spec.email = ["ipugachev84@gmail.com"]
+
+  spec.summary = "Concurrency-safe state machine for ActiveRecord with an append-only transition log"
+  spec.description = "State machine on top of ActiveRecord: the current state lives in a column " \
+                     "guarded by CAS updates, history is an append-only per-model log with " \
+                     "write-once metadata, guards are event-aware, and bypass is explicit."
+  spec.license = "MIT"
+
+  spec.required_ruby_version = ">= 3.3"
+
+  spec.files = Dir["lib/**/*.rb", "LICENSE.txt", "README.md"]
+  spec.require_paths = ["lib"]
+
+  spec.add_dependency "activerecord", ">= 7.2", "< 9"
+  spec.add_dependency "activesupport", ">= 7.2", "< 9"
+
+  spec.metadata["rubygems_mfa_required"] = "true"
+end
