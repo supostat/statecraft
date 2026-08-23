@@ -3,6 +3,8 @@
 module Statecraft
   class Error < StandardError; end
 
+  class CompilationError < Error; end
+
   class GuardFailed < Error
     attr_reader :record, :guard, :from, :to, :event
 
@@ -12,8 +14,9 @@ module Statecraft
       @from = from
       @to = to
       @event = event
+      via = event ? " (event #{event})" : nil
       super("guard #{guard.inspect} failed for #{record.class.name}##{record.id} " \
-            "on #{from} -> #{to}#{event ? " (event #{event})" : ""}")
+            "on #{from} -> #{to}#{via}")
     end
   end
 

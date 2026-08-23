@@ -16,3 +16,17 @@ Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
     - "statecraft.gemspec"
+
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/ClassLength:
+  Max: 200
+
+Metrics/AbcSize:
+  Max: 25
+
+# Class-level state of the DSL mixin lives on the USER's machine class, so the
+# ivar names carry a statecraft_ prefix to stay out of the host's namespace.
+Naming/MemoizedInstanceVariableName:
+  Enabled: false
