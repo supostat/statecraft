@@ -1,6 +1,10 @@
 # statecraft
 
+[![Gem Version](https://img.shields.io/gem/v/statecraft.svg)](https://rubygems.org/gems/statecraft)
+[![CI](https://github.com/supostat/statecraft/actions/workflows/ci.yml/badge.svg)](https://github.com/supostat/statecraft/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
+
+**[Website →](https://supostat.github.io/statecraft/)** · [RubyGems](https://rubygems.org/gems/statecraft) · [Issues](https://github.com/supostat/statecraft/issues)
 
 A state machine for ActiveRecord where the current state lives in a column as
 the single source of truth, history is an append-only per-model log with
@@ -368,6 +372,12 @@ docker compose run --rm test                                # sqlite, default Ru
 docker compose run --rm test-postgres                       # PostgreSQL 16
 AR_VERSION=7.2 RUBY_VERSION=3.3 docker compose run --rm test-postgres
 ```
+
+## Links
+
+- Landing page: <https://supostat.github.io/statecraft/>
+- RubyGems: <https://rubygems.org/gems/statecraft>
+- Issues: <https://github.com/supostat/statecraft/issues>
 
 ## License
 
