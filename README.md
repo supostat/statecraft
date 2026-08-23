@@ -314,7 +314,8 @@ The log lives next to its model, always — a cascade FK cannot cross
 databases, so this is a definition, not a restriction. The generated log
 class inherits the model's connection-owning ancestor (base, roles and
 horizontal shards follow automatically), and the generator drops the
-migration into that connection's migration path. Mounting verifies connection
+migration into the migration path configured for that connection's database
+(`db/migrate` when none is configured). Mounting verifies connection
 identity — same pool, same per-thread connection, one real transaction — and
 raises `Statecraft::ConnectionMismatch` with a fix hint otherwise. Two
 `connects_to` blocks pointing at one physical database are still two pools:

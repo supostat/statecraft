@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+<% class_path.each_with_index do |part, depth| -%>
+<%= "  " * depth %>module <%= part.camelize %>
+<% end -%>
+<%= "  " * class_path.length %>def self.table_name_prefix
+<%= "  " * class_path.length %>  "<%= class_path.join("_") %>_"
+<%= "  " * class_path.length %>end
+<% (class_path.length - 1).downto(0) do |depth| -%>
+<%= "  " * depth %>end
+<% end -%>
