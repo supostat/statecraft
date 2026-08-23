@@ -1,0 +1,9 @@
+.git
+.github
+design
+dist
+site
+docs
+tmp
+*.gem
+Gemfile.lock

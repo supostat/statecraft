@@ -1,0 +1,47 @@
+# Reproducible test environment: the same PostgreSQL major as CI, plus a Ruby
+# image whose version is a build argument, so any CI matrix cell runs locally.
+#
+#   docker compose run --rm test                      # sqlite, default Ruby
+#   docker compose run --rm test-postgres             # PostgreSQL 16
+#   AR_VERSION=7.2 docker compose run --rm test       # another matrix cell
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: statecraft
+      POSTGRES_PASSWORD: statecraft
+      POSTGRES_DB: statecraft_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U statecraft"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  test:
+    # the tag carries the Ruby version: one image name for every cell would
+    # silently reuse whatever was built last, and the matrix would lie
+    image: statecraft-test:ruby-${RUBY_VERSION:-3.4}
+    build:
+      context: .
+      args:
+        RUBY_VERSION: ${RUBY_VERSION:-3.4}
+    environment:
+      AR_VERSION: ${AR_VERSION:-}
+      # gem cache per Ruby version: native extensions built for 3.3 are
+      # unusable on 3.4, and a shared path would silently ignore them
+      BUNDLE_PATH: /bundle/${RUBY_VERSION:-3.4}
+    volumes:
+      - .:/gem
+      - bundle:/bundle
+
+  test-postgres:
+    extends: test
+    environment:
+      DATABASE_URL: postgres://statecraft:statecraft@db:5432/statecraft_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  bundle:

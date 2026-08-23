@@ -349,6 +349,26 @@ degrades — the locking clause is dropped, the reload still runs, and
 statecraft warns once per machine per process that row-locking guarantees
 require PostgreSQL.
 
+## Running the tests
+
+Natively, against SQLite:
+
+```sh
+bundle install
+bundle exec rspec
+```
+
+Against PostgreSQL — where the concurrency proof actually runs — point
+`DATABASE_URL` at a database of your own, or use the bundled containers, which
+pin the same PostgreSQL major as CI and take the Ruby and ActiveRecord versions
+as parameters, so any CI matrix cell reproduces locally:
+
+```sh
+docker compose run --rm test                                # sqlite, default Ruby
+docker compose run --rm test-postgres                       # PostgreSQL 16
+AR_VERSION=7.2 RUBY_VERSION=3.3 docker compose run --rm test-postgres
+```
+
 ## License
 
 MIT. See [LICENSE.txt](LICENSE.txt).
