@@ -40,7 +40,6 @@ module Statecraft
 
       def mount
         assert_not_mounted
-        assert_single_column_primary_key
         log_class = resolve_log_class
         assert_shared_connection_class(log_class)
         graph = machine_class.finalize!
@@ -62,10 +61,6 @@ module Statecraft
 
       def assert_not_mounted
         raise AlreadyMounted.new(model: model) if model.respond_to?(:statecraft_mounting)
-      end
-
-      def assert_single_column_primary_key
-        raise CompositePrimaryKeyUnsupported.new(model: model) if model.primary_key.is_a?(Array)
       end
 
       def resolve_log_class

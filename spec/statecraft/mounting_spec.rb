@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "English"
 require "support/test_schema"
 
 RSpec.describe "mounting" do
@@ -109,12 +110,29 @@ RSpec.describe "mounting" do
         .to raise_error(Statecraft::AlreadyMounted, /inheritance shares the base machine/)
     end
 
-    it "raises CompositePrimaryKeyUnsupported for a composite primary key" do
-      define_flow
-      define_order { self.primary_key = %w[id state] }
-      define_order_log
-      expect { Order.state_machine(OrderFlow) }
-        .to raise_error(Statecraft::CompositePrimaryKeyUnsupported, /single-column/)
+    it "mounts with every option on and no database connection (isolated process)" do
+      probe = <<~RUBY
+        require "statecraft"
+
+        class OrderFlow
+          include Statecraft::Machine
+
+          state :pending, initial: true
+          state :paid
+          event :pay, from: :pending, to: :paid
+        end
+
+        class OrderTransition < ActiveRecord::Base; end
+
+        class Order < ActiveRecord::Base
+          state_machine OrderFlow, changed_at: true, helpers: true, scopes: true
+        end
+
+        abort("mounting did not store the configuration") unless Order.statecraft_mounting
+      RUBY
+
+      output = IO.popen([RbConfig.ruby, "-Ilib", "-e", probe], err: %i[child out], &:read)
+      expect($CHILD_STATUS).to be_success, "mounting needs a live connection: #{output}"
     end
 
     it "raises ConnectionMismatch when the log lives on a foreign connection class" do

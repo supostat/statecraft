@@ -77,6 +77,47 @@ RSpec.describe "transition pipeline" do
         .to raise_error(Statecraft::TransitionConflict, /expected state :pending/)
       expect(OrderTransition.count).to eq(0)
     end
+
+    it "raises TransitionConflict when the lock reload reveals a foreign write" do
+      order = Order.create!
+      Order.where(id: order.id).update_all(state: "cancelled")
+      expect { order.transition_to!(:flagged) }
+        .to raise_error(Statecraft::TransitionConflict, /expected state :pending/)
+      expect(OrderTransition.count).to eq(0)
+    end
+
+    it "raises TransitionConflict instead of silently running another declared edge" do
+      stub_const("RerouteFlow", Class.new do
+        include Statecraft::Machine
+
+        state :pending, initial: true
+        state :cancelled
+        state :flagged
+
+        transition from: :pending, to: :flagged, lock: true
+        transition from: :cancelled, to: :flagged, lock: true
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      Order.state_machine(RerouteFlow, log: OrderTransition)
+
+      order = Order.create!
+      Order.where(id: order.id).update_all(state: "cancelled")
+      expect { order.transition_to!(:flagged) }
+        .to raise_error(Statecraft::TransitionConflict, /expected state :pending/)
+      expect(OrderTransition.count).to eq(0)
+    end
+
+    it "raises CompositePrimaryKeyUnsupported at the first transition, after a clean mounting" do
+      stub_const("CompositeOrder", Class.new(ActiveRecord::Base) do
+        self.table_name = "orders"
+        self.primary_key = %w[id state]
+      end)
+      CompositeOrder.state_machine(OrderFlow, log: OrderTransition)
+      Order.create!
+      composite = CompositeOrder.first
+      expect { composite.transition_to!(:cancelled) }
+        .to raise_error(Statecraft::CompositePrimaryKeyUnsupported, /single-column/)
+    end
   end
 
   describe "bang and non-bang semantics" do
@@ -108,6 +149,13 @@ RSpec.describe "transition pipeline" do
       order = Order.create!
       Order.where(id: order.id).update_all(state: "cancelled")
       expect { order.fire(:pay, metadata: { amount: 1 }) }
+        .to raise_error(Statecraft::TransitionConflict)
+    end
+
+    it "always raises TransitionConflict on the lock path, including non-bang" do
+      order = Order.create!
+      Order.where(id: order.id).update_all(state: "cancelled")
+      expect { order.transition_to(:flagged) }
         .to raise_error(Statecraft::TransitionConflict)
     end
 

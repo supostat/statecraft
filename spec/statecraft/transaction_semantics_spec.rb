@@ -85,6 +85,58 @@ RSpec.describe "transaction semantics" do
       expect(order.reload.state).to eq("paid")
       expect(OrderTransition.count).to eq(1)
     end
+
+    it "rolls the in-memory state back with the savepoint when after_transition raises" do
+      stub_const("ExplodingAfterFlow", Class.new do
+        include Statecraft::Machine
+
+        state :pending, initial: true
+        state :paid
+        event :pay, from: :pending, to: :paid
+        after_transition :explode
+
+        def explode(_record, _transition)
+          raise "after bug"
+        end
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      Order.state_machine(ExplodingAfterFlow, log: OrderTransition)
+      order = Order.create!
+
+      expect { order.fire!(:pay) }.to raise_error(RuntimeError, "after bug")
+
+      expect(order.state).to eq("pending")
+      expect(order.changed?).to be(false)
+      expect(order.reload.state).to eq("pending")
+      expect(OrderTransition.count).to eq(0)
+    end
+
+    it "lets the caller retry cleanly after rescuing an after_transition failure" do
+      stub_const("FlakyProbe", Class.new do
+        def self.calls = (@calls ||= [])
+      end)
+      stub_const("FlakyAfterFlow", Class.new do
+        include Statecraft::Machine
+
+        state :pending, initial: true
+        state :paid
+        event :pay, from: :pending, to: :paid
+        after_transition lambda { |_record, _transition|
+          FlakyProbe.calls << :ran
+          raise "flaky" if FlakyProbe.calls.length == 1
+        }
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      Order.state_machine(FlakyAfterFlow, log: OrderTransition)
+      order = Order.create!
+
+      expect { order.fire!(:pay) }.to raise_error(RuntimeError, "flaky")
+      order.fire!(:pay)
+
+      expect(order.state).to eq("paid")
+      expect(order.reload.state).to eq("paid")
+      expect(OrderTransition.count).to eq(1)
+    end
   end
 
   describe "after_commit AR semantics" do

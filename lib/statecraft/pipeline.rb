@@ -5,7 +5,7 @@ module Statecraft
   #
   #   persisted? -> metadata normalize+freeze -> edge resolution ->
   #   dirty check (lock only) -> transaction(requires_new: true) [
-  #     lock+reload -> re-resolve edge from fresh state -> guards ->
+  #     lock+reload -> conflict check against the resolved edge -> guards ->
   #     before_transition -> CAS UPDATE -> log INSERT (insert path) ->
   #     after_transition
   #   ] -> after_commit registration on the outermost real commit
@@ -30,32 +30,6 @@ module Statecraft
 
     def self.transition_stack
       ActiveSupport::IsolatedExecutionState[STACK_KEY] ||= []
-    end
-
-    # The record-facing API mixed into the model at mounting time. Bang
-    # variants return the created log record; non-bang variants return it too,
-    # or false on GuardFailed / InvalidTransition. Programmer errors and
-    # TransitionConflict always raise.
-    module Surface
-      def transition_to!(to_state, metadata: {}, bypass_events: false)
-        Pipeline.new(self).direct(to_state, metadata: metadata, bypass_events: bypass_events)
-      end
-
-      def transition_to(to_state, metadata: {}, bypass_events: false)
-        transition_to!(to_state, metadata: metadata, bypass_events: bypass_events)
-      rescue GuardFailed, InvalidTransition
-        false
-      end
-
-      def fire!(event_name, metadata: {})
-        Pipeline.new(self).fire(event_name, metadata: metadata)
-      end
-
-      def fire(event_name, metadata: {})
-        fire!(event_name, metadata: metadata)
-      rescue GuardFailed, InvalidTransition
-        false
-      end
     end
 
     def initialize(record)
@@ -86,6 +60,7 @@ module Statecraft
     def run(raw_metadata, &edge_resolver)
       raise UnsavedRecordError.new(record: record) unless record.persisted?
 
+      assert_single_column_primary_key
       metadata = Metadata.normalize(raw_metadata)
       started_at = Time.current
       begin
@@ -93,18 +68,12 @@ module Statecraft
         assert_clean_when_locked(edge)
         frame = open_frame(edge, event)
         begin
-          log_record = execute_transaction(edge, event, bypass, metadata, edge_resolver, frame)
+          log_record = execute_transaction(edge, event, bypass, metadata, frame)
         ensure
           Pipeline.transition_stack.delete(frame)
         end
-      rescue GuardFailed => guard_error
-        publish_failure(started_at, :guard_failed, guard: guard_error.guard)
-        raise
-      rescue InvalidTransition => invalid_error
-        publish_failure(started_at, :invalid_transition, requested: invalid_error.requested)
-        raise
-      rescue TransitionConflict => conflict_error
-        publish_failure(started_at, :conflict, expected_from: conflict_error.expected_from)
+      rescue GuardFailed, InvalidTransition, TransitionConflict => transition_error
+        publish_failure(started_at, transition_error)
         raise
       end
       Instrumentation.publish_transition(
@@ -115,19 +84,25 @@ module Statecraft
       log_record
     end
 
-    def publish_failure(started_at, reason, details)
+    def publish_failure(started_at, error)
+      reason, details =
+        case error
+        when GuardFailed then [:guard_failed, { guard: error.guard }]
+        when InvalidTransition then [:invalid_transition, { requested: error.requested }]
+        when TransitionConflict then [:conflict, { expected_from: error.expected_from }]
+        end
       Instrumentation.publish_failure(
         started_at: started_at, record: record,
         machine_class: configuration.machine_class, reason: reason, details: details
       )
     end
 
-    def execute_transaction(edge, event, bypass, metadata, edge_resolver, frame)
+    def execute_transaction(edge, event, bypass, metadata, frame)
       base_class.transaction(requires_new: true) do
         if edge.lock
           warn_when_row_locking_unavailable
           record.reload(lock: true)
-          edge, event, bypass = edge_resolver.call(current_state)
+          assert_lock_saw_expected_state(edge)
         end
         transition_time = Time.current
         run_guards(edge, event, bypass, metadata)
@@ -138,8 +113,13 @@ module Statecraft
         cas_update!(edge, transition_time)
         frame.cas_done = true
         context.log_record = insert_log_row(edge, event, metadata, transition_time)
-        sync_record(edge, transition_time)
-        run_callbacks(:after_transition, context)
+        synced_snapshot = sync_record(edge, transition_time)
+        begin
+          run_callbacks(:after_transition, context)
+        rescue Exception # rubocop:disable Lint/RescueException -- the savepoint rolls the database back on ANY exception, so the in-memory sync must roll back with it
+          restore_synced_attributes(synced_snapshot)
+          raise
+        end
         context.log_record
       end
     end
@@ -204,10 +184,29 @@ module Statecraft
       graph.edges.keys.select { |from, _to| from == current }.map(&:last)
     end
 
+    # Checked at the first transition, not at mounting time: resolving an
+    # implicit primary key goes through the schema cache, and mounting must
+    # stay safe without a database connection.
+    def assert_single_column_primary_key
+      return unless base_class.primary_key.is_a?(Array)
+
+      raise CompositePrimaryKeyUnsupported.new(model: base_class)
+    end
+
     def assert_clean_when_locked(edge)
       return unless edge.lock && record.changed?
 
       raise DirtyRecordError.new(record: record, changed_attributes: record.changed)
+    end
+
+    # The lock reload can reveal a state that no longer matches the edge the
+    # caller validated. That is a concurrent write observed early: the same
+    # conflict CAS would report, so it raises the same error instead of
+    # silently resolving a different edge from the fresh state.
+    def assert_lock_saw_expected_state(edge)
+      return if current_state == edge.from
+
+      raise TransitionConflict.new(record: record, expected_from: edge.from)
     end
 
     def run_guards(edge, event, bypass, metadata)
@@ -267,18 +266,20 @@ module Statecraft
       log_class.find(log_id)
     end
 
+    # Mirrors exactly what the CAS statement wrote into the row, without a
+    # dirty mark, and returns the prior values so a failing after_transition
+    # can roll the memory back alongside the savepoint.
     def sync_record(edge, transition_time)
-      synced_columns = [configuration.column]
-      record[configuration.column] = edge.to.to_s
-      if touch_updated_at?
-        record[:updated_at] = transition_time
-        synced_columns << :updated_at
-      end
-      if changed_at_column
-        record[changed_at_column] = transition_time
-        synced_columns << changed_at_column
-      end
-      record.clear_attribute_changes(synced_columns)
+      updates = cas_updates(edge, transition_time)
+      snapshot = updates.to_h { |column, _value| [column, record[column]] }
+      updates.each { |column, value| record[column] = value }
+      record.clear_attribute_changes(updates.keys)
+      snapshot
+    end
+
+    def restore_synced_attributes(snapshot)
+      snapshot.each { |column, value| record[column] = value }
+      record.clear_attribute_changes(snapshot.keys)
     end
 
     def register_after_commit_callbacks(log_record, metadata)

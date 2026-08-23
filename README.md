@@ -100,7 +100,8 @@ generator turns them on for new code).
    reload.
 5. `transaction(requires_new: true)` — a savepoint inside your transaction,
    a real transaction otherwise: optional `SELECT ... FOR UPDATE` + reload
-   (with edge re-resolution from the fresh state), guards, `before_transition`
+   (a state that changed under the lock raises
+   `Statecraft::TransitionConflict`), guards, `before_transition`
    callbacks, the CAS update (touching `updated_at` and the `changed_at`
    column in the same statement), the log INSERT, `after_transition`.
 6. `after_commit` callbacks are registered on the outermost real
