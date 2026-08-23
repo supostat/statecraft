@@ -1,0 +1,16 @@
+# frozen_string_literal: true
+
+class <%= class_name %>Flow < ApplicationMachine
+  state :pending, initial: true
+  # state :paid
+  #
+  # event :pay, from: :pending, to: :paid, guard: :payable?
+  #
+  # Guards and callbacks resolve to instance methods of this class:
+  #
+  # private
+  #
+  # def payable?(record, metadata)
+  #   metadata["amount"].to_i.positive?
+  # end
+end

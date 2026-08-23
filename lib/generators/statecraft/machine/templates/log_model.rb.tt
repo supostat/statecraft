@@ -1,0 +1,9 @@
+# frozen_string_literal: true
+
+# Append-only transition log for <%= class_name %>. This is a read-model:
+# scopes, reading methods and serializers are yours; the transition pipeline
+# writes rows through the insert path and never calls validations or
+# callbacks declared here.
+class <%= class_name %>Transition < <%= parent_class_name %>
+  def readonly? = persisted?
+end

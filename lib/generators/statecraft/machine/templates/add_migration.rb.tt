@@ -1,0 +1,27 @@
+# frozen_string_literal: true
+
+class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  def change
+    add_column :<%= table_name %>, :state, :string, null: false, default: "pending"
+    add_index :<%= table_name %>, :state
+    add_column :<%= table_name %>, :state_changed_at, :datetime
+
+    # The existing table may carry legacy values, so no CHECK constraint is
+    # generated here. To add one later without blocking writes:
+    #   ALTER TABLE ... ADD CONSTRAINT ... CHECK (state IN (...)) NOT VALID;
+    #   -- clean the data --
+    #   ALTER TABLE ... VALIDATE CONSTRAINT ...;
+
+    create_table :<%= log_table_name.pluralize %> do |t|
+      t.references :<%= file_name %>, null: false,
+                                      foreign_key: { to_table: :<%= table_name %>, on_delete: :cascade },
+                                      index: false
+      t.string :from_state, null: false
+      t.string :to_state, null: false
+      t.string :event
+      t.jsonb :metadata, null: false, default: {}
+      t.datetime :created_at, null: false
+      t.index %i[<%= foreign_key_column %> id]
+    end
+  end
+end

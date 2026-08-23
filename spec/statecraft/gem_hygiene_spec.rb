@@ -1,12 +1,20 @@
 # frozen_string_literal: true
 
-RSpec.describe "gem hygiene" do
-  it "does not define Rails after require statecraft" do
-    expect(defined?(Rails)).to be_nil
-  end
+require "English"
 
-  it "does not load railties" do
-    expect($LOADED_FEATURES.grep(%r{/railties[/-]})).to be_empty
+RSpec.describe "gem hygiene" do
+  it "neither defines Rails nor loads railties after require statecraft (isolated process)" do
+    probe = <<~RUBY
+      require "statecraft"
+      failures = []
+      failures << "Rails is defined" unless defined?(Rails).nil?
+      railties = $LOADED_FEATURES.grep(%r{/railties[/-]})
+      failures << "railties loaded: \#{railties.first}" unless railties.empty?
+      abort(failures.join("; ")) unless failures.empty?
+    RUBY
+
+    output = IO.popen([RbConfig.ruby, "-Ilib", "-e", probe], err: %i[child out], &:read)
+    expect($CHILD_STATUS).to be_success, "gem loads Rails at runtime: #{output}"
   end
 
   it "exposes a semantic version" do
