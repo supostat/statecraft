@@ -19,17 +19,25 @@ Metrics/BlockLength:
 
 Metrics/MethodLength:
   Max: 20
+  Exclude:
+    - "spec/**/*"
 
 Metrics/ClassLength:
   Max: 200
 
 Metrics/AbcSize:
   Max: 25
+  Exclude:
+    - "spec/**/*"
 
 # The mount macro's surface is a deliberate set of keyword options fixed by the
 # design; keywords document themselves.
 Metrics/ParameterLists:
   Max: 8
+
+# Type dispatchers (metadata round-trip) are case tables by nature.
+Metrics/CyclomaticComplexity:
+  Max: 10
 
 # Class-level state of the DSL mixin lives on the USER's machine class, so the
 # ivar names carry a statecraft_ prefix to stay out of the host's namespace.

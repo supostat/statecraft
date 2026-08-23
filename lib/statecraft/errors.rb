@@ -23,13 +23,15 @@ module Statecraft
   class InvalidTransition < Error
     attr_reader :record, :from, :requested, :allowed
 
-    def initialize(record:, from:, requested:, allowed:)
+    def initialize(record:, from:, requested:, allowed:, message: nil)
       @record = record
       @from = from
       @requested = requested
       @allowed = allowed
-      super("transition #{from} -> #{requested} is not declared for #{record.class.name}; " \
-            "allowed from #{from}: #{allowed.empty? ? "none" : allowed.join(", ")}")
+      default_message = "transition #{from} -> #{requested} is not declared for " \
+                        "#{record.class.name}; allowed from #{from}: " \
+                        "#{allowed.empty? ? "none" : allowed.join(", ")}"
+      super(message || default_message)
     end
   end
 

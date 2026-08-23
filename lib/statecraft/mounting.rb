@@ -50,6 +50,7 @@ module Statecraft
         store_configuration(configuration)
         define_scopes(graph, configuration)
         define_reading_surface
+        model.include(Pipeline::Surface)
         configuration
       end
 
