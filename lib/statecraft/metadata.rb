@@ -19,13 +19,22 @@ module Statecraft
         value.map { |element| round_trip(element) }
       when String then value.dup
       when Symbol then value.to_s
-      when Integer, Float, true, false, nil then value
+      when Integer, true, false, nil then value
+      when Float then round_trip_float(value)
       when Time, Date, DateTime then value.iso8601
       else
         raise ArgumentError,
               "metadata value #{value.inspect} (#{value.class}) is not JSON-serializable; " \
               "metadata must round-trip through jsonb"
       end
+    end
+
+    def self.round_trip_float(value)
+      return value if value.finite?
+
+      raise ArgumentError,
+            "metadata value #{value.inspect} is not JSON-serializable; " \
+            "jsonb has no NaN or Infinity"
     end
 
     def self.round_trip_key(key)

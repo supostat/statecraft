@@ -85,6 +85,23 @@ RSpec.describe "metadata normalization and freeze" do
       expect { order.fire!(:pay, metadata: { [1, 2] => "x" }) }
         .to raise_error(ArgumentError, /not a JSON object key/)
     end
+
+    it "rejects NaN and Infinity before touching the database" do
+      define_mounted_order
+      order = Order.create!
+      [Float::NAN, Float::INFINITY, -Float::INFINITY].each do |non_finite|
+        expect { order.fire!(:pay, metadata: { ratio: non_finite }) }
+          .to raise_error(ArgumentError, /no NaN or Infinity/)
+      end
+      expect(OrderTransition.count).to eq(0)
+    end
+
+    it "rejects a non-finite float nested inside arrays and hashes" do
+      define_mounted_order
+      order = Order.create!
+      expect { order.fire!(:pay, metadata: { readings: [{ value: Float::NAN }] }) }
+        .to raise_error(ArgumentError, /no NaN or Infinity/)
+    end
   end
 
   describe "deep freeze: write-once starts at normalization" do
