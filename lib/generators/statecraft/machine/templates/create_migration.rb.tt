@@ -19,9 +19,17 @@ class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Mi
       t.string :from_state, null: false
       t.string :to_state, null: false
       t.string :event
-      t.<%= metadata_column_type %> :metadata, null: false, default: {}
+      t.column :metadata, metadata_column_type, null: false, default: {}
       t.datetime :created_at, null: false
       t.index %i[<%= foreign_key_column %> id]
     end
+  end
+
+  private
+
+  # jsonb where the database has it, json elsewhere: the adapter is known
+  # only when the migration actually runs, never at generation time.
+  def metadata_column_type
+    connection.adapter_name.match?(/postg/i) ? :jsonb : :json
   end
 end

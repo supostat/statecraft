@@ -93,13 +93,6 @@ module Statecraft
       def migration_class_name
         "Create#{class_name}StateMachine"
       end
-
-      def metadata_column_type
-        adapter = ActiveRecord::Base.connection.adapter_name
-        adapter.match?(/postg/i) ? "jsonb" : "json"
-      rescue ActiveRecord::ActiveRecordError
-        "jsonb"
-      end
     end
   end
 end
