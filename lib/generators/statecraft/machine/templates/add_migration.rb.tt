@@ -19,7 +19,7 @@ class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Mi
       t.string :from_state, null: false
       t.string :to_state, null: false
       t.string :event
-      t.jsonb :metadata, null: false, default: {}
+      t.<%= metadata_column_type %> :metadata, null: false, default: {}
       t.datetime :created_at, null: false
       t.index %i[<%= foreign_key_column %> id]
     end
