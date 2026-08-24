@@ -5,17 +5,17 @@ require "rails_helper"
 # catalog: 33-feed-inversion
 # catalog: 38-full-journey
 
-# The wire: one walk down the main path over the REAL modules of both zones —
-# no mocks anywhere, the app has no network boundary. The customer shops and
-# pays in human words; the operator confirms, ships and delivers with the
-# gem's mechanics on screen; the feed keeps the whole story, refusal included.
+# The wire: one walk down the main path over the REAL modules of every layer
+# and all three roles — no mocks anywhere, the app has no network boundary.
+# Uma shops in human words and sees only her buttons; Mark works the desks
+# but holds no privileged paths; Ada bypasses; the feed keeps the whole
+# story in the end.
 RSpec.describe "the full journey", type: :system do
-  before { sign_in_as("Ada Admin (admin)") }
-
-  it "walks customer checkout -> operator confirmation -> cascade -> delivered -> the feed" do
-    # The customer: catalog -> cart -> express checkout -> Pay.
+  it "walks Uma's checkout -> Mark's desks -> Ada's bypass -> the feed" do
+    # Uma (the default user): catalog -> cart -> express checkout -> Pay.
     visit "/"
     expect(page).to have_current_path(products_path)
+    expect(page).to have_no_link("Operations log")
     within(".product-card", text: "Walnut desk") { click_button "Add to cart" }
     visit cart_path
     expect(page).to have_text("Total: $799.00")
@@ -24,26 +24,28 @@ RSpec.describe "the full journey", type: :system do
     check "express"
     click_button "Place the order"
     expect(page).to have_text("Awaiting payment")
-    expect(page).to have_text("express delivery")
+    expect(page).to have_button("Pay")
+    expect(page).to have_button("Cancel the order")
 
     click_button "Pay"
     expect(page).to have_text("Payment pending confirmation")
+    expect(page).to have_no_button("Pay")
 
     order = Order.find_by!(customer_name: "Journey Jane")
     payment = order.payment
 
-    # The operator: confirming the payment captures it and pays the order.
+    # Mark: confirming the payment captures it and pays the order; the desk
+    # shows him no privileged paths, and shipping cascades for express.
+    sign_in_as("Mark Manager (manager)")
     visit admin_payment_path(payment)
     click_button "capture"
     expect(page).to have_text("capture fired: the payment is captured and the order is paid.")
 
-    # The customer sees the human word for it.
-    visit my_order_path(order)
-    expect(page).to have_text("Paid")
-
-    # The operator ships: creation from the paid card, the express cascade,
-    # the manual deliver.
     visit admin_order_path(order)
+    within(".transition-buttons", match: :first) do
+      expect(page).to have_no_button("admin_override")
+    end
+    expect(page).to have_no_button("bypass cancel")
     click_button "Create shipment"
     expect(page).to have_text("Shipment created.")
     click_button "pack"
@@ -51,11 +53,13 @@ RSpec.describe "the full journey", type: :system do
     click_button "deliver"
     expect(page).to have_text("deliver fired: the shipment is now delivered")
 
+    # Uma reads the human words for all of it.
+    sign_in_as("Uma User (user)")
     visit my_order_path(order)
+    expect(page).to have_text("Paid")
     expect(page).to have_text("Delivered")
 
-    # A second, credit checkout whose reasonless cancellation lands in the
-    # feed as a refusal — told to the customer in storefront words.
+    # Uma places a second, credit order; Ada bypasses it.
     visit products_path
     within(".product-card", text: "Ceramic vase") { click_button "Add to cart" }
     visit checkout_path
@@ -64,18 +68,25 @@ RSpec.describe "the full journey", type: :system do
     click_button "Place the order"
     expect(page).to have_text("paid on credit")
     credit_order = Order.order(:id).last
-    click_button "Cancel the order"
-    expect(page).to have_text("We couldn't cancel this order")
-    expect(page).to have_no_text("GuardFailed")
 
-    # The feed keeps the whole story: the confirmation, the inverted cascade
-    # pair, the delivery and the refusal with its reason.
+    sign_in_as("Ada Admin (admin)")
+    visit admin_order_path(credit_order)
+    click_button "bypass cancel"
+    expect(page).to have_text("bypassed: the order is now cancelled")
+    expect(page).to have_css(".history .muted", text: "direct (bypassed events)")
+
+    sign_in_as("Uma User (user)")
+    visit my_order_path(credit_order)
+    expect(page).to have_text("Cancelled")
+
+    # The feed closes the story: the confirmation, the inverted cascade
+    # pair, the delivery and the bypassed row.
+    sign_in_as("Ada Admin (admin)")
     shipment = order.shipment
     visit admin_operations_path
     expect(page).to have_text("Payment ##{payment.id}")
     expect(page).to have_css("tr", text: "deliver")
-    expect(page).to have_css(".refused", text: "refused: guard_failed")
-    expect(page).to have_text("Order ##{credit_order.id}")
+    expect(page).to have_css("tr .muted", text: "direct (bypassed events)")
     shipment_rows = page.all("table.operations tbody tr").map(&:text)
                         .select { |text| text.include?("Shipment ##{shipment.id}") }
     expect(shipment_rows.length).to eq(3)

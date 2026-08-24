@@ -16,8 +16,21 @@ Two zones, two languages:
   payment and pays the order, the shipment desk with its conditional express
   cascade, and the operations feed where refusals appear with their reason.
 
-`admin` is a route namespace, not a security boundary: the store has no
-users and no auth by design.
+## Roles and permissions
+
+Three demo people live in the top-bar switcher — Uma (user), Mark (manager)
+and Ada (admin) — and picking one is the whole "login": there is no
+authentication by design, only authorization. Permissions are CanCanCan's:
+the `Ability` class maps roles straight onto the machines' events, and every
+action button renders only in the intersection of the graph's possibility
+(`Machine.transitions_from`) and the role's permission (`can?`). Everyone
+shops and pays their own orders; a manager works the desks but pays no one
+else's order — that path goes through payment confirmation; an admin owns
+the privileged edge paths (`admin_override`, bypass). Guards never gate the
+render: a metadata-reading guard refuses input, not possibility, and the
+guard-aware panel carries the prediction.
+
+`admin` stays a route namespace, not a security boundary.
 
 ## Running it
 

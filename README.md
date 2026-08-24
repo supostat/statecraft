@@ -425,20 +425,18 @@ class OrderFlow
 end
 ```
 
-The operator order desk, whole: bang everywhere, the staleness family
-healed in one place, guard refusals local to their form:
+The operator order desk, whole: authorize! on entry and per event, thin
+actions over services, guard refusals local to their form:
 
 <!-- readme: order-controller -->
 ```ruby
   # The operator's order desk — bang everywhere: an operator wants the gem's
   # message for the flash, and a non-bang false carries no text. Staleness
   # heals in ApplicationController; a guard refusal is local to this form.
-  class OrdersController < ApplicationController
+  class OrdersController < BaseController
     def index
-      scope = params[:state].to_s
-      @orders = OrderFlow.states.map(&:to_s).include?(scope) ? Order.public_send(scope) : Order.all
-      @orders = @orders.order(:number)
-      @active_state = scope
+      @orders = OrdersQuery.call(state: params[:state])
+      @active_state = params[:state].to_s
     end
 
     def show
@@ -471,6 +469,7 @@ healed in one place, guard refusals local to their form:
     # guard — the log will name it admin_override.
     def admin_override
       order = Order.find(params[:id])
+      authorize! :admin_override, order
       order.admin_override!(metadata: { "reason" => "admin override" })
       redirect_to admin_order_path(order),
                   notice: "admin_override fired: the order is now #{order[:state]}."
@@ -481,6 +480,7 @@ healed in one place, guard refusals local to their form:
     # "direct (bypassed events)".
     def bypass_cancel
       order = Order.find(params[:id])
+      authorize! :bypass_cancel, order
       order.transition_to!(:cancelled, bypass_events: true,
                                        metadata: { "reason" => "bypassed by admin" })
       redirect_to admin_order_path(order),
@@ -489,18 +489,18 @@ healed in one place, guard refusals local to their form:
 
     def create_shipment
       order = Order.find(params[:id])
-      if order[:state] != "paid" || order.shipment.present?
-        redirect_to admin_order_path(order), alert: "A shipment needs a paid order without one."
-      else
-        shipment = Shipment.create!(number: "SHIP-#{order.number}", order: order)
-        redirect_to admin_shipment_path(shipment), notice: "Shipment created."
-      end
+      authorize! :create_shipment, order
+      shipment = CreateShipment.call(order: order)
+      redirect_to admin_shipment_path(shipment), notice: "Shipment created."
+    rescue ArgumentError => error
+      redirect_to admin_order_path(order), alert: error.message.capitalize + "."
     end
 
     private
 
     def fire(event_name)
       @order = Order.find(params[:id])
+      authorize! event_name, @order
       @metadata = submitted_metadata
       @order.fire!(event_name, metadata: @metadata)
       redirect_to admin_order_path(@order),
@@ -519,8 +519,9 @@ healed in one place, guard refusals local to their form:
   end
 ```
 
-The preview button — a non-mutating submit of the same fields the panel
-predicts with:
+The preview button — a non-mutating submit of the same fields the
+guard-aware panel predicts with, next to buttons that render only in the
+possibility-times-permission intersection:
 
 <!-- readme: preview-pattern -->
 ```erb
@@ -534,8 +535,7 @@ predicts with:
   </fieldset>
 
   <%= render "shared/transition_buttons",
-             machine: OrderFlow,
-             state: @order[:state],
+             record: @order,
              fire_url: ->(event_name) { public_send("#{event_name}_admin_order_path", @order) } %>
 
   <button type="submit" class="preview-button">preview</button>

@@ -36,9 +36,9 @@
 # Example
 
 - 23. triple-path-edge — three paths of one edge on the operator desk · scene
-- 24. graph-gates-render — buttons from the graph's shape, guards never gate the click · scene
+- 24. graph-gates-render — buttons are possibility times permission, guards never gate the render · scene
 - 25. panel-contract — the panel predicts from the submitted metadata · scene
-- 26. toctou-gap — the panel's promise dies between render and click · scene
+- 26. toctou-gap — the snapshot ages: the button lives on while readiness dies · scene
 - 27. sti-shared-machine — a mixed list, one guard branching by type · scene
 - 28. staleness-two-mechanisms — two operators, a stale form and a stale instance · scene
 - 29. dirty-save-and-capture — persistence is not mixed with a transition · scene
@@ -53,3 +53,5 @@
 - 38. full-journey — the two-role main path from checkout to the feed · scene
 - 39. checkout-flow — catalog to cart to checkout births the order · scene
 - 40. customer-statuses — the storefront speaks human, never gem words · scene
+- 41. permissions-x-graph — three roles see three button sets over one record · scene
+- 42. role-switcher — picking a person in the top bar is the whole login · scene

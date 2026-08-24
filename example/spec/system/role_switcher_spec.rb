@@ -2,6 +2,8 @@
 
 require "rails_helper"
 
+# catalog: 42-role-switcher
+
 RSpec.describe "the role switcher", type: :system do
   it "defaults to the seeded customer and shows who you are" do
     visit products_path
