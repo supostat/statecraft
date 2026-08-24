@@ -29,6 +29,7 @@ the generator as a progressive enhancement.
 
 ## Installation
 
+<!-- illustrative -->
 ```ruby
 gem "statecraft"
 ```
@@ -48,6 +49,7 @@ log table with a cascade FK — and a CHECK constraint when the table is
 freshly created), the machine class, the readonly log model, and mounts the
 machine into the model. By hand it looks like this:
 
+<!-- illustrative -->
 ```ruby
 class OrderFlow < ApplicationMachine
   state :pending, initial: true
@@ -193,6 +195,7 @@ retry policy belongs to whoever chose the isolation level.
 
 ## Introspection
 
+<!-- illustrative -->
 ```ruby
 order.can_fire?(:pay, metadata: { amount: 100 })  # would the guards pass right now?
 order.may_pay?(metadata: { amount: 100 })          # alias, with helpers: true
@@ -340,6 +343,7 @@ that also fails the check, correctly.
 No railties at runtime — the hygiene is enforced by a test, not a promise.
 Without the generator, create the schema by hand; the reference shape:
 
+<!-- illustrative -->
 ```ruby
 create_table :orders do |t|
   t.string :state, null: false, default: "pending", index: true
@@ -368,6 +372,194 @@ PostgreSQL in CI), and `lock: true` degrades the way ActiveRecord itself
 degrades — the locking clause is dropped, the reload still runs, and
 statecraft warns once per machine per process that row-locking guarantees
 require PostgreSQL.
+
+## Example app patterns
+
+These blocks are copied verbatim from the example app and locked by
+`example/script/readme_drift_check.rb` — the code is right, the README
+catches up by hand. The machine behind an order card:
+
+<!-- readme: machine-skeleton -->
+```ruby
+class OrderFlow
+  include Statecraft::Machine
+
+  state :pending, initial: true
+  state :paid
+  state :refunded
+  state :cancelled
+
+  event :pay, from: :pending, to: :paid
+  event :refund, from: :paid, to: :refunded, guard: :refundable?
+
+  # One edge, the whole event layer: a guarded event, an unguarded privileged
+  # event and the bypass path all share pending -> cancelled — the log
+  # records HOW, not only WHAT.
+  event :cancel, from: :pending, to: :cancelled, guard: :cancellable?
+  event :admin_override, from: :pending, to: :cancelled
+
+  private
+
+  # Refundability is a property of the record, not of the metadata: shipped
+  # items pin the money. The TOCTOU scene lives exactly in this gap.
+  def refundable?(record, _metadata)
+    record.shipped_items_count.zero?
+  end
+
+  # Credit orders cancel only through the admin paths — the same click
+  # refuses differently for the two STI types on one screen.
+  def cancellable?(record, metadata)
+    return false if record.is_a?(CreditOrder)
+
+    metadata["reason"].to_s.strip.present?
+  end
+end
+```
+
+The whole controller: bang everywhere, the staleness family healed in one
+place, guard refusals local to their form:
+
+<!-- readme: order-controller -->
+```ruby
+# Bang everywhere: a controller wants the gem's message for the flash, and a
+# non-bang false carries no text — "try quietly" is the idiom for jobs, not
+# for scenes.
+class OrdersController < ApplicationController
+  def index
+    scope = params[:state].to_s
+    @orders = OrderFlow.states.map(&:to_s).include?(scope) ? Order.public_send(scope) : Order.all
+    @orders = @orders.order(:number)
+    @active_state = scope
+  end
+
+  def show
+    @order = Order.find(params[:id])
+    @metadata = {}
+  end
+
+  def pay
+    fire(:pay)
+  end
+
+  def cancel
+    fire(:cancel)
+  end
+
+  def refund
+    fire(:refund)
+  end
+
+  # The non-mutating submit of the SAME fields: the panel recomputes from
+  # exactly the metadata a real fire would carry. Nothing is written.
+  def preview
+    @order = Order.find(params[:id])
+    @metadata = submitted_metadata
+    flash.now[:notice] = "Preview only — nothing was written."
+    render :show
+  end
+
+  private
+
+  def fire(event_name)
+    @order = Order.find(params[:id])
+    @metadata = submitted_metadata
+    @order.fire!(event_name, metadata: @metadata)
+    redirect_to order_path(@order), notice: "#{event_name} fired: the order is now #{@order[:state]}."
+  rescue Statecraft::GuardFailed => error
+    # Local to the form: re-render THIS card with the panel computed from the
+    # metadata that were actually submitted — a guard refusal belongs to the
+    # scene, not to a global handler.
+    flash.now[:alert] = "Refused: #{error.message}"
+    render :show, status: :unprocessable_entity
+  end
+
+  def submitted_metadata
+    params.fetch(:metadata, {}).permit(:reason).to_h
+  end
+end
+```
+
+The preview button — a non-mutating submit of the same fields the panel
+predicts with:
+
+<!-- readme: preview-pattern -->
+```erb
+<%= form_with url: preview_order_path(@order), method: :post, local: true do %>
+  <fieldset>
+    <legend>Metadata for the next action</legend>
+    <label>
+      reason
+      <input type="text" name="metadata[reason]" value="<%= @metadata["reason"] %>">
+    </label>
+  </fieldset>
+
+  <%= render "shared/transition_buttons",
+             machine: OrderFlow,
+             state: @order[:state],
+             fire_url: lambda { |event_name|
+               if event_name == :admin_override
+                 admin_override_admin_order_path(@order)
+               else
+                 public_send("#{event_name}_order_path", @order)
+               end
+             } %>
+
+  <button type="submit" class="preview-button">preview</button>
+<% end %>
+```
+
+Subscribing to the telemetry — the five-argument form is the one that
+publish-style events actually deliver to:
+
+<!-- readme: telemetry-subscriber -->
+```ruby
+# The one executable example of subscribing to statecraft's telemetry: the
+# Operations log feed is written here, with create!, into an ordinary table.
+# The gem publishes with explicit start/finish, so subscribers take the
+# five-argument block form. Payloads never carry metadata (the gem's PII
+# decision) — whoever needs it reads the transition log record instead.
+ActiveSupport::Notifications.subscribe("transition.statecraft") do |_name, _started, _finished, _id, payload|
+  OperationEntry.create!(
+    record_class: payload[:record_class],
+    record_id: payload[:record_id].to_s,
+    from_state: payload[:from],
+    to_state: payload[:to],
+    event_name: payload[:event],
+    outcome: "transition"
+  )
+end
+
+ActiveSupport::Notifications.subscribe("transition_failed.statecraft") do |_name, _started, _finished, _id, payload|
+  OperationEntry.create!(
+    record_class: payload[:record_class],
+    record_id: payload[:record_id].to_s,
+    from_state: payload[:from],
+    to_state: payload[:to],
+    event_name: payload[:event],
+    outcome: "refused",
+    reason: payload[:reason].to_s
+  )
+end
+```
+
+Seeding through the honest pipeline, refusal narrative included:
+
+<!-- readme: seed-pattern -->
+```ruby
+  # The refusal scenario WITH its narrative: the rescue is part of the plot —
+  # a cancellation attempt without a reason lands in the operations feed as a
+  # refusal, then the reasoned retry succeeds.
+  def seed_disputed_order
+    order = Order.create!(number: "ORD-DISPUTED")
+    begin
+      order.cancel!(metadata: {})
+    rescue Statecraft::GuardFailed
+      # the refusal is the point: the feed keeps it
+    end
+    order.cancel!(metadata: { "reason" => "dispute resolved in the customer's favor" })
+    order
+  end
+```
 
 ## Running the tests
 

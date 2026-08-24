@@ -2,6 +2,9 @@
 
 require "rails_helper"
 
+# catalog: 23-triple-path-edge
+# catalog: 27-sti-shared-machine
+
 RSpec.describe OrderFlow do
   describe "mounting" do
     it "refuses a second mount" do

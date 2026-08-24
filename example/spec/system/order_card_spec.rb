@@ -2,6 +2,10 @@
 
 require "rails_helper"
 
+# catalog: 24-graph-gates-render
+# catalog: 25-panel-contract
+# catalog: 26-toctou-gap
+
 RSpec.describe "the order card", type: :system do
   it "round-trips a click: flash, state, panel and history in the same reload" do
     order = Order.find_by!(number: "ORD-FRESH")

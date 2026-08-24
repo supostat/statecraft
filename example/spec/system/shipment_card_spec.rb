@@ -2,6 +2,9 @@
 
 require "rails_helper"
 
+# catalog: 32-conditional-cascade
+# catalog: 33-feed-inversion
+
 RSpec.describe "the shipment card", type: :system do
   it "express: one pack click cascades to shipped — two history rows on one re-render" do
     shipment = Shipment.create!(number: "SPEC-SHIP-EXPRESS", express: true)

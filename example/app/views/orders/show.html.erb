@@ -5,6 +5,7 @@
   · <%= link_to "admin view", admin_order_path(@order) %>
 </p>
 
+<%# readme: preview-pattern %>
 <%= form_with url: preview_order_path(@order), method: :post, local: true do %>
   <fieldset>
     <legend>Metadata for the next action</legend>
@@ -27,6 +28,7 @@
 
   <button type="submit" class="preview-button">preview</button>
 <% end %>
+<%# /readme %>
 
 <%= render "shared/available_panel", record: @order, metadata: @metadata %>
 <%= render "shared/history", record: @order %>

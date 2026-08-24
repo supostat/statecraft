@@ -2,6 +2,8 @@
 
 require "rails_helper"
 
+# catalog: 34-second-database-hermetic
+
 RSpec.describe Analytics::Event do
   it "lives hermetically in the second database, log included" do
     expect(described_class.connection_db_config.name).to eq("analytics")

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# readme: telemetry-subscriber
 # The one executable example of subscribing to statecraft's telemetry: the
 # Operations log feed is written here, with create!, into an ordinary table.
 # The gem publishes with explicit start/finish, so subscribers take the
@@ -27,3 +28,4 @@ ActiveSupport::Notifications.subscribe("transition_failed.statecraft") do |_name
     reason: payload[:reason].to_s
   )
 end
+# /readme

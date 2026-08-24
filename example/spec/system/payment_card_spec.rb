@@ -2,6 +2,9 @@
 
 require "rails_helper"
 
+# catalog: 28-staleness-two-mechanisms
+# catalog: 29-dirty-save-and-capture
+
 RSpec.describe "the payment card", type: :system do
   it "dirty scene: save-and-capture refuses — don't mix persistence with a transition" do
     payment = Payment.find_by!(number: "PAY-PENDING")

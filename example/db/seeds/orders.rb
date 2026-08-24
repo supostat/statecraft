@@ -46,6 +46,7 @@ module OrderSeeds
     order
   end
 
+  # readme: seed-pattern
   # The refusal scenario WITH its narrative: the rescue is part of the plot —
   # a cancellation attempt without a reason lands in the operations feed as a
   # refusal, then the reasoned retry succeeds.
@@ -59,6 +60,7 @@ module OrderSeeds
     order.cancel!(metadata: { "reason" => "dispute resolved in the customer's favor" })
     order
   end
+  # /readme
 
   # The out-of-band mutation for the TOCTOU scene: items ship between the
   # render and the click, and refundable? flips under the open card.

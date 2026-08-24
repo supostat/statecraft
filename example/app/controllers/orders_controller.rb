@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# readme: order-controller
 # Bang everywhere: a controller wants the gem's message for the flash, and a
 # non-bang false carries no text — "try quietly" is the idiom for jobs, not
 # for scenes.
@@ -56,3 +57,4 @@ class OrdersController < ApplicationController
     params.fetch(:metadata, {}).permit(:reason).to_h
   end
 end
+# /readme

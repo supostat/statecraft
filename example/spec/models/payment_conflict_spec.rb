@@ -2,6 +2,9 @@
 
 require "rails_helper"
 
+# catalog: 30-deterministic-conflict
+# catalog: 31-n-thread-race
+
 RSpec.describe "payment conflicts" do
   describe "the deterministic conflict — no threads needed" do
     it "raises TransitionConflict when the instance is stale, and writes no log row" do

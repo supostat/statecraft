@@ -2,6 +2,8 @@
 
 require "rails_helper"
 
+# catalog: 35-namespaced-runtime
+
 # The runtime half of the namespaced story: the generator's output, kept
 # as-is, mounts and transitions in a live app — no routes involved, the
 # subject is the machinery itself.

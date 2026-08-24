@@ -2,6 +2,8 @@
 
 require "rails_helper"
 
+# catalog: 23-triple-path-edge
+
 RSpec.describe "the admin page", type: :system do
   it "bypass writes event: nil and the history shows the muted direct label" do
     order = Order.create!(number: "SPEC-ADMIN-BYPASS")

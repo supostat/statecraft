@@ -2,6 +2,8 @@
 
 require "rails_helper"
 
+# catalog: 24-graph-gates-render
+
 # The real-dep smoke of the skeleton -> gem edge: the partial renders from the
 # ACTUAL Machine.transitions_from of an actual machine class — the graph gates
 # the render, and guards are never consulted for it.

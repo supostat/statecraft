@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# readme: machine-skeleton
 class OrderFlow
   include Statecraft::Machine
 
@@ -33,3 +34,4 @@ class OrderFlow
     metadata["reason"].to_s.strip.present?
   end
 end
+# /readme

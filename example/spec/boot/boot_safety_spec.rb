@@ -2,6 +2,9 @@
 
 require "rails_helper"
 
+# catalog: 36-boot-safety
+# catalog: 37-telemetry-subscriber
+
 RSpec.describe "boot safety" do
   it "eager loads the whole app under Zeitwerk" do
     expect { Rails.application.eager_load! }.not_to raise_error

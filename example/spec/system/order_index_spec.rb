@@ -2,6 +2,8 @@
 
 require "rails_helper"
 
+# catalog: 27-sti-shared-machine
+
 RSpec.describe "the order index", type: :system do
   it "mixes both STI types in one list" do
     visit orders_path
