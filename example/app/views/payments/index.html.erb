@@ -1,0 +1,16 @@
+<h1>Payments</h1>
+
+<table>
+  <thead>
+    <tr><th>number</th><th>amount</th><th>state</th></tr>
+  </thead>
+  <tbody>
+    <% @payments.each do |payment| %>
+      <tr>
+        <td><%= link_to payment.number, payment_path(payment) %></td>
+        <td><%= payment.amount_cents %>c</td>
+        <td><code><%= payment[:state] %></code></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

@@ -7,11 +7,20 @@ class ApplicationController < ActionController::Base
   # Programmer errors (Dirty/Unsaved/Nested/ChainDepth) are not caught at
   # all — they belong to the error tracker.
   rescue_from Statecraft::InvalidTransition do |error|
-    redirect_to order_path(error.record), alert: "This action is no longer available: #{error.message}"
+    redirect_to stale_record_path(error.record),
+                alert: "This action is no longer available: #{error.message}"
   end
 
   rescue_from Statecraft::TransitionConflict do |error|
-    redirect_to order_path(error.record),
+    redirect_to stale_record_path(error.record),
                 alert: "Another operator got there first — check and retry: #{error.message}"
+  end
+
+  private
+
+  # The fresh card of whatever record went stale; base_class keeps STI
+  # descendants on their parent's route.
+  def stale_record_path(record)
+    url_for(controller: "/#{record.class.base_class.name.tableize}", action: :show, id: record.id)
   end
 end

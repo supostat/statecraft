@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_120002) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_120003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -43,8 +43,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_120002) do
     t.string "type"
     t.datetime "updated_at", null: false
     t.index ["state"], name: "index_orders_on_state"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying, 'refunded'::character varying, 'cancelled'::character varying]::text[])", name: "orders_state_check"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text, 'refunded'::character varying::text, 'cancelled'::character varying::text])", name: "orders_state_check"
+  end
+
+  create_table "payment_transitions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event"
+    t.string "from_state", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "payment_id", null: false
+    t.string "to_state", null: false
+    t.index ["payment_id", "id"], name: "index_payment_transitions_on_payment_id_and_id"
+  end
+
+  create_table "payments", force: :cascade do |t|
+    t.integer "amount_cents", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "number", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["state"], name: "index_payments_on_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'captured'::character varying]::text[])", name: "payments_state_check"
   end
 
   add_foreign_key "order_transitions", "orders", on_delete: :cascade
+  add_foreign_key "payment_transitions", "payments", on_delete: :cascade
 end

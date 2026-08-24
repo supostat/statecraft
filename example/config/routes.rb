@@ -13,6 +13,13 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :payments, only: %i[index show] do
+    member do
+      post :capture
+      post :save_and_capture
+    end
+  end
+
   # admin is a route namespace, not a security boundary: the harness has no
   # users and no auth by design (see README).
   namespace :admin do
