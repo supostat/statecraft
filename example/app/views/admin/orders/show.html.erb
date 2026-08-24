@@ -1,0 +1,18 @@
+<h1>Admin · Order <%= @order.number %></h1>
+
+<p>State: <code><%= @order[:state] %></code> · <%= link_to "back to the card", order_path(@order) %></p>
+
+<div class="available-panel">
+  Bypass writes event: nil to the log — the history will show the muted
+  "direct (bypassed events)". The privileged event next to it is a different
+  thing: a named event without a guard, and the log says so.
+</div>
+
+<div class="transition-buttons">
+  <%= button_to "admin_override", admin_override_admin_order_path(@order),
+                method: :post, class: "transition-button" %>
+  <%= button_to "bypass cancel", bypass_cancel_admin_order_path(@order),
+                method: :post, class: "transition-button" %>
+</div>
+
+<%= render "shared/history", record: @order %>

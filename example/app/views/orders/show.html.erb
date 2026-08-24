@@ -1,0 +1,32 @@
+<h1>Order <%= @order.number %> <span class="muted">(<%= @order.is_a?(CreditOrder) ? "credit" : "regular" %>)</span></h1>
+
+<p>
+  State: <code><%= @order[:state] %></code>
+  · <%= link_to "admin view", admin_order_path(@order) %>
+</p>
+
+<%= form_with url: preview_order_path(@order), method: :post, local: true do %>
+  <fieldset>
+    <legend>Metadata for the next action</legend>
+    <label>
+      reason
+      <input type="text" name="metadata[reason]" value="<%= @metadata["reason"] %>">
+    </label>
+  </fieldset>
+
+  <%= render "shared/transition_buttons",
+             machine: OrderFlow,
+             state: @order[:state],
+             fire_url: lambda { |event_name|
+               if event_name == :admin_override
+                 admin_override_admin_order_path(@order)
+               else
+                 public_send("#{event_name}_order_path", @order)
+               end
+             } %>
+
+  <button type="submit" class="preview-button">preview</button>
+<% end %>
+
+<%= render "shared/available_panel", record: @order, metadata: @metadata %>
+<%= render "shared/history", record: @order %>

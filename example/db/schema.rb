@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_120002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -24,4 +24,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_120001) do
     t.string "record_id", null: false
     t.string "to_state"
   end
+
+  create_table "order_transitions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event"
+    t.string "from_state", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "order_id", null: false
+    t.string "to_state", null: false
+    t.index ["order_id", "id"], name: "index_order_transitions_on_order_id_and_id"
+  end
+
+  create_table "orders", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "number", null: false
+    t.integer "shipped_items_count", default: 0, null: false
+    t.string "state", default: "pending", null: false
+    t.string "type"
+    t.datetime "updated_at", null: false
+    t.index ["state"], name: "index_orders_on_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying, 'refunded'::character varying, 'cancelled'::character varying]::text[])", name: "orders_state_check"
+  end
+
+  add_foreign_key "order_transitions", "orders", on_delete: :cascade
 end
