@@ -71,8 +71,75 @@
   --code-keyword: light-dark(#0550ae, #8fb8f6);
   --code-symbol: light-dark(#953800, #e2b06c);
   --code-string: light-dark(#116329, #9fce8f);
-  --code-comment: light-dark(#7d8590, #6b7484);
+  --code-comment: light-dark(#5d6771, #6b7484);
 }
 
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
+
+/* Static fallbacks for browsers without light-dark() (Chrome <123,
+   Safari <17.5, Firefox <120): the main :root above keeps every token
+   declared exactly once; this block re-declares plain values only where
+   light-dark() would otherwise leave the token invalid — and the primary
+   CTA invisible. color-mix() derivatives are left alone: on the affected
+   range they resolve, and where they do not, only decorative tints fade. */
+@supports not (color: light-dark(#fff, #000)) {
+  :root {
+    --shadow-window: 0 var(--space-2) var(--space-6) rgba(20, 24, 29, 0.18);
+    --bg: #ffffff;
+    --bg-raised: #f6f7f9;
+    --bg-code: #f3f4f6;
+    --border: #d9dde3;
+    --text: #2a2f36;
+    --text-muted: #6b7280;
+    --heading: #14181d;
+    --accent: #cc342d;
+    --ok: #1f8a4c;
+    --warn: #9a6b13;
+    --code-text: #30363d;
+    --code-keyword: #0550ae;
+    --code-symbol: #953800;
+    --code-string: #116329;
+    --code-comment: #5d6771;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --shadow-window: 0 var(--space-2) var(--space-6) rgba(0, 0, 0, 0.18);
+      --bg: #101318;
+      --bg-raised: #171c24;
+      --bg-code: #0b0e13;
+      --border: #2a3140;
+      --text: #d7dde6;
+      --text-muted: #8b94a3;
+      --heading: #f2f5f9;
+      --accent: #e2504c;
+      --ok: #4cbf7a;
+      --warn: #d9a13b;
+      --code-text: #ced7e2;
+      --code-keyword: #8fb8f6;
+      --code-symbol: #e2b06c;
+      --code-string: #9fce8f;
+      --code-comment: #6b7484;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --shadow-window: 0 var(--space-2) var(--space-6) rgba(0, 0, 0, 0.18);
+    --bg: #101318;
+    --bg-raised: #171c24;
+    --bg-code: #0b0e13;
+    --border: #2a3140;
+    --text: #d7dde6;
+    --text-muted: #8b94a3;
+    --heading: #f2f5f9;
+    --accent: #e2504c;
+    --ok: #4cbf7a;
+    --warn: #d9a13b;
+    --code-text: #ced7e2;
+    --code-keyword: #8fb8f6;
+    --code-symbol: #e2b06c;
+    --code-string: #9fce8f;
+    --code-comment: #6b7484;
+  }
+}

@@ -13,6 +13,7 @@ rm -rf dist
 mkdir dist
 cp site/index.html dist/index.html
 cp site/tokens.css dist/tokens.css
+cp site/og-image.png dist/og-image.png
 
 # design/ lives outside git (working design layer). When it is present
 # locally, the tracked production copy must match it — drift fails red.
@@ -26,10 +27,10 @@ for leftover in etalon-switcher data-fixture design-fixtures design-states setFi
   fi
 done
 
-for required in og:title og:description rel=\"canonical\" rel=\"icon\" localStorage tokens.css; do
+for required in og:title og:description og:image twitter:card rel=\"canonical\" rel=\"icon\" localStorage tokens.css; do
   if ! grep -q "$required" dist/index.html; then
     fail "mandatory production marker missing: $required"
   fi
 done
 
-echo "build.sh: dist/ ready (index.html + tokens.css)"
+echo "build.sh: dist/ ready (index.html + tokens.css + og-image.png)"
