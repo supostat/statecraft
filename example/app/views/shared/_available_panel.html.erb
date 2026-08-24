@@ -1,0 +1,16 @@
+<%# The prediction: available_transitions with the SAME metadata the form
+    would submit. Still a snapshot — CAS may reject a moment later, and the
+    TOCTOU scene lives exactly in that gap. Locals: record, metadata. %>
+<div class="available-panel">
+  <h3>Available from here</h3>
+  <% availabilities = record.available_transitions(metadata: metadata) %>
+  <% if availabilities.empty? %>
+    <p class="muted">nothing — not with these metadata</p>
+  <% else %>
+    <ul>
+      <% availabilities.each do |availability| %>
+        <li><code><%= availability.to %></code> via <%= availability.via.join(", ") %></li>
+      <% end %>
+    </ul>
+  <% end %>
+</div>

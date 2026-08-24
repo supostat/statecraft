@@ -1,0 +1,19 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+ruby "~> 3.4.0"
+
+gem "rails", "~> 8.1.0"
+
+gem "pg"
+gem "puma"
+
+# The harness runs on the current commit of the gem: the path dependency is
+# the visible declaration of that promise, and it lands in Gemfile.lock.
+gem "statecraft", path: ".."
+
+group :development, :test do
+  gem "capybara"
+  gem "rspec-rails"
+end

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# The one-argv doorway to the example suite: gate criteria spawn a single
+# process, so the cd-and-bundle dance lives here, not in the commands.
+set -euo pipefail
+
+cd "$(dirname "$0")/../example"
+exec bundle exec rspec "$@"

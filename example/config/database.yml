@@ -1,0 +1,29 @@
+# PostgreSQL only: SQLite would show json where production shows jsonb, and
+# what you look at must be what is proven. The second database is a second
+# PostgreSQL database on the same server — the canonical Rails multi-database
+# idiom; db:prepare creates both.
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: 5
+  host: <%= ENV.fetch("PGHOST", "localhost") %>
+  username: <%= ENV["PGUSER"] %>
+  password: <%= ENV["PGPASSWORD"] %>
+
+development:
+  primary:
+    <<: *default
+    database: statecraft_example_development
+  analytics:
+    <<: *default
+    database: statecraft_example_analytics_development
+    migrations_paths: db/analytics_migrate
+
+test:
+  primary:
+    <<: *default
+    database: statecraft_example_test
+  analytics:
+    <<: *default
+    database: statecraft_example_analytics_test
+    migrations_paths: db/analytics_migrate

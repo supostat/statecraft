@@ -1,0 +1,36 @@
+<%# The read-model block of the card: rows straight from the transition log.
+    A bypassed transition carries event: nil and renders as the muted
+    "direct (bypassed events)" — the log records HOW, not only WHAT.
+    Locals: record. %>
+<div class="history">
+  <h3>History</h3>
+  <% entries = record.history.to_a %>
+  <% if entries.empty? %>
+    <p class="muted">
+      created in <%= record.class.statecraft_mounting.machine_class.initial_state %> —
+      the log is silent about birth
+    </p>
+  <% else %>
+    <table>
+      <thead>
+        <tr><th>from</th><th>to</th><th>via</th><th>at</th></tr>
+      </thead>
+      <tbody>
+        <% entries.each do |transition| %>
+          <tr>
+            <td><code><%= transition.from_state %></code></td>
+            <td><code><%= transition.to_state %></code></td>
+            <td>
+              <% if transition.event %>
+                <%= transition.event %>
+              <% else %>
+                <span class="muted">direct (bypassed events)</span>
+              <% end %>
+            </td>
+            <td class="muted"><%= transition.created_at %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>

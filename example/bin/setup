@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+bundle install
+bin/rails db:prepare
+bin/rails db:seed
+
+echo
+echo "Ready: bin/rails s"

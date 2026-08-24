@@ -1,0 +1,12 @@
+<%# The graph gates the render, guards never gate the click. Buttons come from
+    Machine.transitions_from — the STATIC shape of the graph — and a rendered
+    button is never filtered or disabled by predicates: the panel is the
+    prediction, the flash is the execution. Locals: machine (the machine
+    class), state (a symbol), fire_url (event_name -> url). %>
+<div class="transition-buttons">
+  <% machine.transitions_from(state).each do |edge| %>
+    <% edge[:events].each do |event_name| %>
+      <%= button_to event_name, fire_url.call(event_name), method: :post, class: "transition-button" %>
+    <% end %>
+  <% end %>
+</div>

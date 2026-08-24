@@ -1,0 +1,111 @@
+/* Handwritten, neutral, ~100 lines: every selector serves the readability of
+   a scene — state, actions, prediction, history. CSS for beauty's sake does
+   not pass the diff. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #1f2933;
+  background: #f8f9fb;
+}
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+  background: #eef1f5;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+/* Header: the way back to the index is always one click. */
+.site-header {
+  background: #1f2933;
+  padding: 0.6rem 1.5rem;
+}
+
+.site-header nav {
+  display: flex;
+  gap: 1.25rem;
+  align-items: baseline;
+}
+
+.site-header a {
+  color: #e6e9ee;
+  text-decoration: none;
+}
+
+.site-header .brand { font-weight: 700; }
+
+main {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+/* Flashes carry the gem's contract messages verbatim — they must be
+   unmissable and distinguishable by family. */
+.flash {
+  max-width: 56rem;
+  margin: 1rem auto 0;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border: 1px solid;
+}
+
+.flash-notice {
+  background: #e8f6ee;
+  border-color: #2f9e63;
+}
+
+.flash-alert {
+  background: #fdeceb;
+  border-color: #d64541;
+}
+
+/* Tables render lists and history: the eye scans states column-first. */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #e0e4ea;
+}
+
+/* Transition buttons: rendered by the graph, never disabled by guards —
+   an enabled look that may still be refused is part of the lesson. */
+.transition-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+.transition-button {
+  font: inherit;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #2c5f8a;
+  border-radius: 6px;
+  background: #33709f;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* The prediction panel is visually calmer than the buttons: a forecast,
+   not a control. */
+.available-panel {
+  background: #eef4fa;
+  border: 1px solid #d3e0ec;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+
+.muted { color: #7b8794; }
