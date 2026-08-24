@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_124348) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -25,6 +25,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_124348) do
     t.string "to_state"
   end
 
+  create_table "order_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "order_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "quantity", default: 1, null: false
+    t.integer "unit_price_cents", null: false
+    t.index ["order_id"], name: "index_order_items_on_order_id"
+    t.index ["product_id"], name: "index_order_items_on_product_id"
+  end
+
   create_table "order_transitions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "event"
@@ -37,8 +47,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_124348) do
 
   create_table "orders", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "customer_name"
+    t.boolean "express", default: false, null: false
     t.string "number", null: false
-    t.integer "shipped_items_count", default: 0, null: false
     t.string "state", default: "pending", null: false
     t.string "type"
     t.datetime "updated_at", null: false
@@ -60,10 +71,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_124348) do
     t.integer "amount_cents", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "number", null: false
+    t.bigint "order_id", null: false
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_payments_on_order_id", unique: true
     t.index ["state"], name: "index_payments_on_state"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'captured'::character varying::text])", name: "payments_state_check"
+  end
+
+  create_table "products", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.integer "price_cents", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "shipment_transitions", force: :cascade do |t|
@@ -78,12 +98,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_124348) do
 
   create_table "shipments", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.boolean "express", default: false, null: false
     t.string "number", null: false
+    t.bigint "order_id", null: false
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_shipments_on_order_id", unique: true
     t.index ["state"], name: "index_shipments_on_state"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'packed'::character varying, 'shipped'::character varying, 'delivered'::character varying]::text[])", name: "shipments_state_check"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'packed'::character varying::text, 'shipped'::character varying::text, 'delivered'::character varying::text])", name: "shipments_state_check"
   end
 
   create_table "shop_order_transitions", force: :cascade do |t|
@@ -102,11 +123,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_124348) do
     t.datetime "state_changed_at"
     t.datetime "updated_at", null: false
     t.index ["state"], name: "index_shop_orders_on_state"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying]::text[])", name: "shop_orders_state_check"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text])", name: "shop_orders_state_check"
   end
 
+  add_foreign_key "order_items", "orders", on_delete: :cascade
+  add_foreign_key "order_items", "products"
   add_foreign_key "order_transitions", "orders", on_delete: :cascade
   add_foreign_key "payment_transitions", "payments", on_delete: :cascade
+  add_foreign_key "payments", "orders", on_delete: :cascade
   add_foreign_key "shipment_transitions", "shipments", on_delete: :cascade
+  add_foreign_key "shipments", "orders", on_delete: :cascade
   add_foreign_key "shop_order_transitions", "shop_orders", column: "order_id", on_delete: :cascade
 end

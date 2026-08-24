@@ -20,10 +20,12 @@ class OrderFlow
 
   private
 
-  # Refundability is a property of the record, not of the metadata: shipped
-  # items pin the money. The TOCTOU scene lives exactly in this gap.
+  # Refundability is a property of the record, not of the metadata: money
+  # comes back only while the shipment has not sailed. The TOCTOU scene
+  # lives exactly in this gap.
   def refundable?(record, _metadata)
-    record.shipped_items_count.zero?
+    shipment = record.shipment
+    shipment.nil? || %w[pending packed].include?(shipment[:state])
   end
 
   # Credit orders cancel only through the admin paths — the same click

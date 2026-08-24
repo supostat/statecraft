@@ -7,7 +7,7 @@ require "rails_helper"
 
 RSpec.describe "the payment card", type: :system do
   it "dirty scene: save-and-capture refuses — don't mix persistence with a transition" do
-    payment = Payment.find_by!(number: "PAY-PENDING")
+    payment = Order.find_by!(number: "ORD-1012").payment
     visit payment_path(payment)
 
     fill_in "payment[amount_cents]", with: "5100"
@@ -23,7 +23,7 @@ RSpec.describe "the payment card", type: :system do
   end
 
   it "two operators: a stale form's second submit meets the staleness flash, not a silent no-op" do
-    payment = Payment.find_by!(number: "PAY-PENDING")
+    payment = Order.find_by!(number: "ORD-1012").payment
     visit payment_path(payment)
 
     # The second operator wins between this render and our click — an honest

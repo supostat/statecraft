@@ -8,7 +8,7 @@ require "rails_helper"
 
 RSpec.describe "the order card", type: :system do
   it "round-trips a click: flash, state, panel and history in the same reload" do
-    order = Order.find_by!(number: "ORD-FRESH")
+    order = Order.find_by!(number: "ORD-1001")
     visit order_path(order)
     expect(page).to have_text("created in pending — the log is silent about birth")
 
@@ -20,7 +20,7 @@ RSpec.describe "the order card", type: :system do
   end
 
   it "keeps the panel honest both ways: from submitted metadata after a refusal, and via preview" do
-    order = Order.create!(number: "SPEC-PANEL")
+    order = Order.create!(number: "SPEC-PANEL", customer_name: "Spec")
     visit order_path(order)
 
     click_button "cancel"
@@ -37,8 +37,8 @@ RSpec.describe "the order card", type: :system do
     expect(page).to have_css("code", text: "pending")
   end
 
-  it "TOCTOU: the panel's promise can die between render and click — the flash tells the truth" do
-    order = Order.find_by!(number: "ORD-REFUNDABLE")
+  it "TOCTOU: the panel's promise dies when the shipment sails between render and click" do
+    order = Order.find_by!(number: "ORD-1004")
     visit order_path(order)
     expect(page).to have_css(".available-panel li", text: "refunded")
 

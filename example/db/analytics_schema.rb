@@ -30,7 +30,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_120005) do
     t.string "state", default: "recorded", null: false
     t.datetime "updated_at", null: false
     t.index ["state"], name: "index_analytics_events_on_state"
-    t.check_constraint "state::text = ANY (ARRAY['recorded'::character varying, 'archived'::character varying]::text[])", name: "analytics_events_state_check"
+    t.check_constraint "state::text = ANY (ARRAY['recorded'::character varying::text, 'archived'::character varying::text])", name: "analytics_events_state_check"
   end
 
   add_foreign_key "analytics_event_transitions", "analytics_events", column: "event_id", on_delete: :cascade

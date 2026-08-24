@@ -6,8 +6,15 @@ require "rails_helper"
 # catalog: 33-feed-inversion
 
 RSpec.describe "the shipment card", type: :system do
+  def paid_order(number, express: false)
+    OrderSeeds.pay_order(
+      OrderSeeds.place_order(number: number, customer: "Spec Operator",
+                             items: { "Reading lamp" => 1 }, express: express)
+    )
+  end
+
   it "express: one pack click cascades to shipped — two history rows on one re-render" do
-    shipment = Shipment.create!(number: "SPEC-SHIP-EXPRESS", express: true)
+    shipment = Shipment.create!(number: "SHIP-SPEC-EXPRESS", order: paid_order("SPEC-EXP", express: true))
     visit shipment_path(shipment)
 
     click_button "pack"
@@ -19,19 +26,20 @@ RSpec.describe "the shipment card", type: :system do
   end
 
   it "the feed keeps the cascade's pair inverted: the nested link lands first" do
-    shipment = Shipment.create!(number: "SPEC-SHIP-FEED", express: true)
+    shipment = Shipment.create!(number: "SHIP-SPEC-FEED", order: paid_order("SPEC-FEED", express: true))
     shipment.pack!(metadata: {})
 
     visit operations_path
 
-    rows = page.all("table.operations tbody tr").map(&:text).select { |text| text.include?("##{shipment.id}") && text.include?("Shipment") }
+    rows = page.all("table.operations tbody tr").map(&:text)
+               .select { |text| text.include?("Shipment ##{shipment.id}") }
     expect(rows.length).to eq(2)
     expect(rows.first).to include("ship")
     expect(rows.last).to include("pack")
   end
 
   it "regular: packs and honestly waits — the chain does not fire where none is declared" do
-    shipment = Shipment.find_by!(number: "SHIP-REGULAR")
+    shipment = Order.find_by!(number: "ORD-1010").shipment
     expect(shipment[:state]).to eq("packed")
 
     visit shipment_path(shipment)
