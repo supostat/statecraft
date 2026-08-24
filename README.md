@@ -88,6 +88,12 @@ Mounting options: `log:` (defaults to the `<Model>Transition` convention),
 the same CAS update), `helpers:` and `scopes:` (both off by default; the
 generator turns them on for new code).
 
+## Example app
+
+A complete Rails application lives in [`example/`](example/): every feature
+as a real user flow over seeded data, with an e2e suite on top. Inside it:
+`bundle install && bin/rails db:setup && bin/rails s` — PostgreSQL only.
+
 ## The transition pipeline
 
 `transition_to!` / `fire!` run one strict order:
