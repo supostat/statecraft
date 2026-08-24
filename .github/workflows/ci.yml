@@ -13,6 +13,43 @@ jobs:
       - uses: actions/checkout@v7
       - run: bash site/build.sh
 
+  # The second test contour: the example app on a real Rails with two
+  # PostgreSQL databases, plus both repository locks. One cell on purpose —
+  # AR-version compatibility is the gem matrix's job; this job proves the
+  # gem lives in an actual Rails.
+  example:
+    name: example app
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: statecraft
+          POSTGRES_PASSWORD: statecraft
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U statecraft"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: statecraft
+      PGPASSWORD: statecraft
+      RAILS_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: example
+      - run: bin/rails db:prepare
+        working-directory: example
+      - run: bin/example spec
+      - run: ruby example/script/catalog_check.rb
+      - run: ruby example/script/readme_drift_check.rb
+
   test-sqlite:
     name: sqlite · ruby ${{ matrix.ruby }} · ar ${{ matrix.ar }}
     runs-on: ubuntu-latest

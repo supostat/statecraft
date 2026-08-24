@@ -4,6 +4,7 @@
 #   docker compose run --rm test                      # sqlite, default Ruby
 #   docker compose run --rm test-postgres             # PostgreSQL 16
 #   AR_VERSION=7.2 docker compose run --rm test       # another matrix cell
+#   docker compose run --rm example                   # the example app suite
 
 services:
   db:
@@ -39,6 +40,22 @@ services:
     extends: test
     environment:
       DATABASE_URL: postgres://statecraft:statecraft@db:5432/statecraft_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The example app's suite: the same PostgreSQL is reused, and db:prepare
+  # creates both of its databases from database.yml.
+  example:
+    extends: test
+    working_dir: /gem/example
+    environment:
+      PGHOST: db
+      PGUSER: statecraft
+      PGPASSWORD: statecraft
+      RAILS_ENV: test
+      BUNDLE_PATH: /bundle/example-${RUBY_VERSION:-3.4}
+    command: bash -c "bundle install && bin/rails db:prepare && bundle exec rspec"
     depends_on:
       db:
         condition: service_healthy
