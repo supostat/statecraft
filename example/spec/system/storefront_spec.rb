@@ -2,6 +2,9 @@
 
 require "rails_helper"
 
+# catalog: 39-checkout-flow
+# catalog: 40-customer-statuses
+
 RSpec.describe "the storefront", type: :system do
   it "walks catalog -> cart -> checkout -> Pay -> human statuses, no gem vocabulary" do
     visit products_path

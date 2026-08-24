@@ -35,19 +35,21 @@
 
 # Example
 
-- 23. triple-path-edge — three paths of one edge, distinguishable in the log · scene
+- 23. triple-path-edge — three paths of one edge on the operator desk · scene
 - 24. graph-gates-render — buttons from the graph's shape, guards never gate the click · scene
 - 25. panel-contract — the panel predicts from the submitted metadata · scene
 - 26. toctou-gap — the panel's promise dies between render and click · scene
 - 27. sti-shared-machine — a mixed list, one guard branching by type · scene
-- 28. staleness-two-mechanisms — a stale form and a stale instance, two errors · scene
+- 28. staleness-two-mechanisms — two operators, a stale form and a stale instance · scene
 - 29. dirty-save-and-capture — persistence is not mixed with a transition · scene
 - 30. deterministic-conflict — a conflict without threads via update_all · spec
 - 31. n-thread-race — the PostgreSQL race, exactly one winner · spec
-- 32. conditional-cascade — express sails, regular waits in packed · scene
+- 32. conditional-cascade — an express order sails on pack, a regular one waits · scene
 - 33. feed-inversion — the nested link lands first in the feed · scene
 - 34. second-database-hermetic — the second database tenant with its own log · spec
 - 35. namespaced-runtime — the generated Shop::Order transitions · spec
 - 36. boot-safety — a live boot, both databases writable · spec
 - 37. telemetry-subscriber — the five-argument subscription writes the feed · spec
-- 38. full-journey — the main path from seed to feed · scene
+- 38. full-journey — the two-role main path from checkout to the feed · scene
+- 39. checkout-flow — catalog to cart to checkout births the order · scene
+- 40. customer-statuses — the storefront speaks human, never gem words · scene

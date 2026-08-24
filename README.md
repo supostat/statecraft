@@ -90,8 +90,9 @@ generator turns them on for new code).
 
 ## Example app
 
-A complete Rails application lives in [`example/`](example/): every feature
-as a real user flow over seeded data, with an e2e suite on top. Inside it:
+A complete, working web store lives in [`example/`](example/): a storefront
+in human words over a two-zone Rails app, with the gem's full mechanics on
+the operator side and an e2e suite on top. Inside it:
 `bundle install && bin/rails db:setup && bin/rails s` — PostgreSQL only.
 
 ## The transition pipeline
@@ -381,9 +382,9 @@ require PostgreSQL.
 
 ## Example app patterns
 
-These blocks are copied verbatim from the example app and locked by
+These blocks are copied verbatim from the example store and locked by
 `example/script/readme_drift_check.rb` — the code is right, the README
-catches up by hand. The machine behind an order card:
+catches up by hand. The machine behind an order:
 
 <!-- readme: machine-skeleton -->
 ```ruby
@@ -406,10 +407,12 @@ class OrderFlow
 
   private
 
-  # Refundability is a property of the record, not of the metadata: shipped
-  # items pin the money. The TOCTOU scene lives exactly in this gap.
+  # Refundability is a property of the record, not of the metadata: money
+  # comes back only while the shipment has not sailed. The TOCTOU scene
+  # lives exactly in this gap.
   def refundable?(record, _metadata)
-    record.shipped_items_count.zero?
+    shipment = record.shipment
+    shipment.nil? || %w[pending packed].include?(shipment[:state])
   end
 
   # Credit orders cancel only through the admin paths — the same click
@@ -422,67 +425,98 @@ class OrderFlow
 end
 ```
 
-The whole controller: bang everywhere, the staleness family healed in one
-place, guard refusals local to their form:
+The operator order desk, whole: bang everywhere, the staleness family
+healed in one place, guard refusals local to their form:
 
 <!-- readme: order-controller -->
 ```ruby
-# Bang everywhere: a controller wants the gem's message for the flash, and a
-# non-bang false carries no text — "try quietly" is the idiom for jobs, not
-# for scenes.
-class OrdersController < ApplicationController
-  def index
-    scope = params[:state].to_s
-    @orders = OrderFlow.states.map(&:to_s).include?(scope) ? Order.public_send(scope) : Order.all
-    @orders = @orders.order(:number)
-    @active_state = scope
-  end
+  # The operator's order desk — bang everywhere: an operator wants the gem's
+  # message for the flash, and a non-bang false carries no text. Staleness
+  # heals in ApplicationController; a guard refusal is local to this form.
+  class OrdersController < ApplicationController
+    def index
+      scope = params[:state].to_s
+      @orders = OrderFlow.states.map(&:to_s).include?(scope) ? Order.public_send(scope) : Order.all
+      @orders = @orders.order(:number)
+      @active_state = scope
+    end
 
-  def show
-    @order = Order.find(params[:id])
-    @metadata = {}
-  end
+    def show
+      @order = Order.find(params[:id])
+      @metadata = {}
+    end
 
-  def pay
-    fire(:pay)
-  end
+    def pay
+      fire(:pay)
+    end
 
-  def cancel
-    fire(:cancel)
-  end
+    def cancel
+      fire(:cancel)
+    end
 
-  def refund
-    fire(:refund)
-  end
+    def refund
+      fire(:refund)
+    end
 
-  # The non-mutating submit of the SAME fields: the panel recomputes from
-  # exactly the metadata a real fire would carry. Nothing is written.
-  def preview
-    @order = Order.find(params[:id])
-    @metadata = submitted_metadata
-    flash.now[:notice] = "Preview only — nothing was written."
-    render :show
-  end
+    # The non-mutating submit of the SAME fields: the panel recomputes from
+    # exactly the metadata a real fire would carry. Nothing is written.
+    def preview
+      @order = Order.find(params[:id])
+      @metadata = submitted_metadata
+      flash.now[:notice] = "Preview only — nothing was written."
+      render :show
+    end
 
-  private
+    # The privileged event: a SECOND event on the same edge, without a
+    # guard — the log will name it admin_override.
+    def admin_override
+      order = Order.find(params[:id])
+      order.admin_override!(metadata: { "reason" => "admin override" })
+      redirect_to admin_order_path(order),
+                  notice: "admin_override fired: the order is now #{order[:state]}."
+    end
 
-  def fire(event_name)
-    @order = Order.find(params[:id])
-    @metadata = submitted_metadata
-    @order.fire!(event_name, metadata: @metadata)
-    redirect_to order_path(@order), notice: "#{event_name} fired: the order is now #{@order[:state]}."
-  rescue Statecraft::GuardFailed => error
-    # Local to the form: re-render THIS card with the panel computed from the
-    # metadata that were actually submitted — a guard refusal belongs to the
-    # scene, not to a global handler.
-    flash.now[:alert] = "Refused: #{error.message}"
-    render :show, status: :unprocessable_entity
-  end
+    # The bypass: the same edge with the event layer skipped — the log
+    # writes event: nil and the history renders the muted
+    # "direct (bypassed events)".
+    def bypass_cancel
+      order = Order.find(params[:id])
+      order.transition_to!(:cancelled, bypass_events: true,
+                                       metadata: { "reason" => "bypassed by admin" })
+      redirect_to admin_order_path(order),
+                  notice: "bypassed: the order is now #{order[:state]}."
+    end
 
-  def submitted_metadata
-    params.fetch(:metadata, {}).permit(:reason).to_h
+    def create_shipment
+      order = Order.find(params[:id])
+      if order[:state] != "paid" || order.shipment.present?
+        redirect_to admin_order_path(order), alert: "A shipment needs a paid order without one."
+      else
+        shipment = Shipment.create!(number: "SHIP-#{order.number}", order: order)
+        redirect_to admin_shipment_path(shipment), notice: "Shipment created."
+      end
+    end
+
+    private
+
+    def fire(event_name)
+      @order = Order.find(params[:id])
+      @metadata = submitted_metadata
+      @order.fire!(event_name, metadata: @metadata)
+      redirect_to admin_order_path(@order),
+                  notice: "#{event_name} fired: the order is now #{@order[:state]}."
+    rescue Statecraft::GuardFailed => error
+      # Local to the form: re-render THIS card with the panel computed from
+      # the metadata that were actually submitted — a guard refusal belongs
+      # to the scene, not to a global handler.
+      flash.now[:alert] = "Refused: #{error.message}"
+      render :show, status: :unprocessable_entity
+    end
+
+    def submitted_metadata
+      params.fetch(:metadata, {}).permit(:reason).to_h
+    end
   end
-end
 ```
 
 The preview button — a non-mutating submit of the same fields the panel
@@ -490,7 +524,7 @@ predicts with:
 
 <!-- readme: preview-pattern -->
 ```erb
-<%= form_with url: preview_order_path(@order), method: :post, local: true do %>
+<%= form_with url: preview_admin_order_path(@order), method: :post, local: true do %>
   <fieldset>
     <legend>Metadata for the next action</legend>
     <label>
@@ -502,13 +536,7 @@ predicts with:
   <%= render "shared/transition_buttons",
              machine: OrderFlow,
              state: @order[:state],
-             fire_url: lambda { |event_name|
-               if event_name == :admin_override
-                 admin_override_admin_order_path(@order)
-               else
-                 public_send("#{event_name}_order_path", @order)
-               end
-             } %>
+             fire_url: ->(event_name) { public_send("#{event_name}_admin_order_path", @order) } %>
 
   <button type="submit" class="preview-button">preview</button>
 <% end %>
@@ -556,7 +584,8 @@ Seeding through the honest pipeline, refusal narrative included:
   # a cancellation attempt without a reason lands in the operations feed as a
   # refusal, then the reasoned retry succeeds.
   def seed_disputed_order
-    order = Order.create!(number: "ORD-DISPUTED")
+    order = place_order(number: "ORD-1009", customer: "Ivy Chen",
+                        items: { "Ceramic vase" => 2 })
     begin
       order.cancel!(metadata: {})
     rescue Statecraft::GuardFailed

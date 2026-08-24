@@ -2,10 +2,10 @@
 
 ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
 
-# The production environment is absent by construction: this app is a test
-# harness for the statecraft gem, never a deployable service.
+# The production environment is absent by construction: this store exists
+# to be run and read, never to be deployed.
 if ENV["RAILS_ENV"] == "production" || ENV["RACK_ENV"] == "production"
-  abort "the statecraft example is a test harness: the production environment does not exist"
+  abort "the statecraft example store never runs in production: the environment does not exist"
 end
 
 require "bundler/setup"
