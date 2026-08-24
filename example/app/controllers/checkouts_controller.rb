@@ -19,7 +19,8 @@ class CheckoutsController < ApplicationController
       order = order_class.create!(
         number: "ORD-#{2000 + Order.count + 1}",
         customer_name: params.require(:customer_name),
-        express: params[:express] == "1"
+        express: params[:express] == "1",
+        user: current_user
       )
       cart.each do |product_id, quantity|
         product = Product.find(product_id)
@@ -29,7 +30,6 @@ class CheckoutsController < ApplicationController
     end
 
     session[:cart] = {}
-    my_order_ids << order.id
     redirect_to my_order_path(order), notice: "Order #{order.number} placed — thank you!"
   end
 
@@ -37,9 +37,5 @@ class CheckoutsController < ApplicationController
 
   def cart
     session[:cart] ||= {}
-  end
-
-  def my_order_ids
-    session[:order_ids] ||= []
   end
 end

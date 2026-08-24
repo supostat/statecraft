@@ -5,7 +5,7 @@ module Admin
   # The operator's order desk — bang everywhere: an operator wants the gem's
   # message for the flash, and a non-bang false carries no text. Staleness
   # heals in ApplicationController; a guard refusal is local to this form.
-  class OrdersController < ApplicationController
+  class OrdersController < BaseController
     def index
       scope = params[:state].to_s
       @orders = OrderFlow.states.map(&:to_s).include?(scope) ? Order.public_send(scope) : Order.all

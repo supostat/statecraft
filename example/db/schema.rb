@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_130001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_140001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -53,7 +53,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_130001) do
     t.string "state", default: "pending", null: false
     t.string "type"
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
     t.index ["state"], name: "index_orders_on_state"
+    t.index ["user_id"], name: "index_orders_on_user_id"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text, 'refunded'::character varying::text, 'cancelled'::character varying::text])", name: "orders_state_check"
   end
 
@@ -126,9 +128,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_130001) do
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text])", name: "shop_orders_state_check"
   end
 
+  create_table "users", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.string "role", default: "user", null: false
+    t.datetime "updated_at", null: false
+    t.check_constraint "role::text = ANY (ARRAY['user'::character varying, 'manager'::character varying, 'admin'::character varying]::text[])", name: "users_role_check"
+  end
+
   add_foreign_key "order_items", "orders", on_delete: :cascade
   add_foreign_key "order_items", "products"
   add_foreign_key "order_transitions", "orders", on_delete: :cascade
+  add_foreign_key "orders", "users"
   add_foreign_key "payment_transitions", "payments", on_delete: :cascade
   add_foreign_key "payments", "orders", on_delete: :cascade
   add_foreign_key "shipment_transitions", "shipments", on_delete: :cascade

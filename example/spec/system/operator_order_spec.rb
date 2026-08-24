@@ -9,6 +9,8 @@ require "rails_helper"
 # catalog: 27-sti-shared-machine
 
 RSpec.describe "the operator order desk", type: :system do
+  before { sign_in_as("Ada Admin (admin)") }
+
   it "lists both STI kinds and filters by the state scopes" do
     visit admin_orders_path
 

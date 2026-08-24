@@ -1,6 +1,20 @@
 # frozen_string_literal: true
 
 class ApplicationController < ActionController::Base
+  helper_method :current_user
+
+  # No authentication by design: the current user is whoever the top-bar
+  # switcher picked, defaulting to the seeded customer.
+  def current_user
+    @current_user ||= User.find_by(id: session[:user_id]) ||
+                      User.where(role: "user").order(:id).first
+  end
+
+  rescue_from CanCan::AccessDenied do
+    redirect_to products_path,
+                alert: "That area needs a different role — switch the user in the top bar."
+  end
+
   # The staleness family heals in one place: both errors mean "the record
   # moved on while you were looking" — flash the gem's message, show the
   # fresh card. Guard refusals are NOT here: a refusal is local to its form.

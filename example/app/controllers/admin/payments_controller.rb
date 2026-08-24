@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Admin
-  class PaymentsController < ApplicationController
+  class PaymentsController < BaseController
     def index
       @payments = Payment.order(:number)
     end

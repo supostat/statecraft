@@ -6,6 +6,8 @@ require "rails_helper"
 # catalog: 29-dirty-save-and-capture
 
 RSpec.describe "the operator payment desk", type: :system do
+  before { sign_in_as("Ada Admin (admin)") }
+
   it "confirming a payment captures it AND pays the order — one visible two-step link" do
     order = Order.find_by!(number: "ORD-1012")
     payment = order.payment

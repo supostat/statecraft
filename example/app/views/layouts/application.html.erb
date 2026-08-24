@@ -6,6 +6,7 @@
     <title>statecraft example</title>
     <%= csrf_meta_tags %>
     <link rel="stylesheet" href="/application.css">
+    <script src="/app.js" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -14,11 +15,25 @@
         <a href="/products">Store</a>
         <a href="/cart">Cart</a>
         <a href="/my/orders">My orders</a>
-        <span class="muted">admin:</span>
-        <a href="/admin/orders">Orders</a>
-        <a href="/admin/payments">Payments</a>
-        <a href="/admin/shipments">Shipments</a>
-        <a href="/admin/operations">Operations log</a>
+        <% if can? :access, :admin_zone %>
+          <span class="muted">admin:</span>
+          <a href="/admin/orders">Orders</a>
+          <a href="/admin/payments">Payments</a>
+          <a href="/admin/shipments">Shipments</a>
+          <a href="/admin/operations">Operations log</a>
+        <% end %>
+        <%= form_with url: switch_user_path, method: :post, local: true,
+                      class: "user-switcher", data: { autosubmit: true } do %>
+          <span class="muted">you are:</span>
+          <select name="user_id">
+            <% User.order(:id).each do |user| %>
+              <option value="<%= user.id %>" <%= "selected" if user == current_user %>>
+                <%= user.name %> (<%= user.role %>)
+              </option>
+            <% end %>
+          </select>
+          <button type="submit" class="switch-button">Switch</button>
+        <% end %>
       </nav>
     </header>
 

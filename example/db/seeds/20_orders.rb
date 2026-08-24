@@ -6,9 +6,11 @@
 module OrderSeeds
   module_function
 
-  def place_order(number:, customer:, items:, credit: false, express: false)
+  def place_order(number:, customer:, items:, credit: false, express: false, user: nil)
     order_class = credit ? CreditOrder : Order
-    order = order_class.create!(number: number, customer_name: customer, express: express)
+    owner = user || User.where(role: "user").order(:id).first
+    order = order_class.create!(number: number, customer_name: customer, express: express,
+                                user: owner)
     items.each do |product_name, quantity|
       product = Product.find_by!(name: product_name)
       order.items.create!(product: product, quantity: quantity,

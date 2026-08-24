@@ -10,6 +10,8 @@ require "rails_helper"
 # pays in human words; the operator confirms, ships and delivers with the
 # gem's mechanics on screen; the feed keeps the whole story, refusal included.
 RSpec.describe "the full journey", type: :system do
+  before { sign_in_as("Ada Admin (admin)") }
+
   it "walks customer checkout -> operator confirmation -> cascade -> delivered -> the feed" do
     # The customer: catalog -> cart -> express checkout -> Pay.
     visit "/"

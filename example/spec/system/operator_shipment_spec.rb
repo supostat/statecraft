@@ -6,6 +6,8 @@ require "rails_helper"
 # catalog: 33-feed-inversion
 
 RSpec.describe "the operator shipment desk", type: :system do
+  before { sign_in_as("Ada Admin (admin)") }
+
   it "creates the shipment from a paid order's card and cascades express to shipped" do
     order = OrderSeeds.pay_order(
       OrderSeeds.place_order(number: "SPEC-EXP", customer: "Spec Operator",

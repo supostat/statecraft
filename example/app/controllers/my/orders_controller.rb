@@ -13,7 +13,7 @@ module My
     end
 
     def index
-      @orders = Order.where(id: my_order_ids).order(created_at: :desc)
+      @orders = MyOrdersQuery.call(user: current_user)
     end
 
     def show
@@ -24,6 +24,7 @@ module My
     # pending payment for the order's total; an operator confirms it later.
     def pay
       order = my_order
+      authorize! :pay, order
       if order.payment.present? || order[:state] != "pending"
         redirect_to my_order_path(order), alert: "This order cannot be paid again."
       else
@@ -36,6 +37,7 @@ module My
 
     def cancel
       order = my_order
+      authorize! :cancel, order
       order.cancel!(metadata: { "reason" => params.dig(:metadata, :reason).to_s })
       redirect_to my_order_path(order), notice: "Your order has been cancelled."
     rescue Statecraft::GuardFailed
@@ -47,11 +49,7 @@ module My
     private
 
     def my_order
-      Order.where(id: my_order_ids).find(params[:id])
-    end
-
-    def my_order_ids
-      session[:order_ids] ||= []
+      MyOrdersQuery.call(user: current_user).find(params[:id])
     end
   end
 end

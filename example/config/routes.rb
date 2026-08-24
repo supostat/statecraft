@@ -14,6 +14,8 @@ Rails.application.routes.draw do
   get "checkout", to: "checkouts#new"
   post "checkout", to: "checkouts#create"
 
+  post "switch_user", to: "switch_users#create"
+
   # The customer's own orders: found by the session, described in human
   # words — the gem's vocabulary stays in the operator zone.
   namespace :my do

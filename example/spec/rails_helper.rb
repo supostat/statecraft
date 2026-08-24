@@ -10,6 +10,8 @@ require "rspec/rails"
 require "capybara/rspec"
 require_relative "spec_helper"
 
+Dir[File.expand_path("support/**/*.rb", __dir__)].each { |file| require file }
+
 ActiveRecord::Migration.maintain_test_schema!
 
 RSpec.configure do |config|

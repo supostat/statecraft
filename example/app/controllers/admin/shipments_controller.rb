@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Admin
-  class ShipmentsController < ApplicationController
+  class ShipmentsController < BaseController
     def index
       @shipments = Shipment.order(:number)
     end
