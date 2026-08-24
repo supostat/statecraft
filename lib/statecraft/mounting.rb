@@ -82,11 +82,26 @@ module Statecraft
         raise ConnectionMismatch.new(model: model, log_class: log_class)
       end
 
+      # Methods this mounting itself defines, so a verb check runs BEFORE the
+      # includes and still sees them: an event named fire or history would
+      # otherwise silently shadow the gem's own surface.
+      def mounted_surface_methods
+        Pipeline::Surface.instance_methods +
+          Introspection.instance_methods +
+          %i[history last_transition in_state?]
+      end
+
       def assert_no_verb_conflicts(graph)
         return unless @helpers
 
+        surface_methods = mounted_surface_methods
         graph.events.each_key do |event_name|
           verb_names(event_name).each do |verb|
+            if surface_methods.include?(verb.to_sym)
+              raise CompilationError,
+                    "helper #{verb} for event #{event_name.inspect} conflicts with the " \
+                    "#{verb} method statecraft itself mounts; rename the event"
+            end
             next unless model.method_defined?(verb) || model.private_method_defined?(verb)
 
             raise CompilationError,

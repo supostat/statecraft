@@ -28,6 +28,8 @@ module Statecraft
     STACK_KEY = :statecraft_transition_stack
     MAX_CHAIN_DEPTH = 16
 
+    include EdgeResolution
+
     def self.transition_stack
       ActiveSupport::IsolatedExecutionState[STACK_KEY] ||= []
     end
@@ -70,7 +72,7 @@ module Statecraft
         begin
           log_record = execute_transaction(edge, event, bypass, metadata, frame)
         ensure
-          Pipeline.transition_stack.delete(frame)
+          Pipeline.transition_stack.delete_if { |open| open.equal?(frame) }
         end
       rescue GuardFailed, InvalidTransition, TransitionConflict => transition_error
         publish_failure(started_at, transition_error)
@@ -147,41 +149,6 @@ module Statecraft
 
     def current_state
       record[configuration.column].to_s.to_sym
-    end
-
-    def resolve_direct_edge(current, to_state, bypass_events)
-      edge = graph.edges[[current, to_state]]
-      raise_invalid_transition(current, to_state) if edge.nil?
-      guarding_events = edge.event_names.select { |name| edge.event_guards[name].any? }
-      if guarding_events.any? && !bypass_events
-        raise InvalidTransition.new(
-          record: record, from: current, requested: to_state,
-          allowed: allowed_targets(current),
-          message: "direct transition #{current} -> #{to_state} is guarded by " \
-                   "event#{"s" if guarding_events.length > 1} #{guarding_events.join(", ")}; " \
-                   "call fire!(:#{guarding_events.first}) or pass bypass_events: true"
-        )
-      end
-      edge
-    end
-
-    def resolve_event_edge(current, event_name)
-      branches = graph.events[event_name]
-      raise_invalid_transition(current, event_name) if branches.nil?
-      edge = branches[current]
-      raise_invalid_transition(current, event_name) if edge.nil?
-      edge
-    end
-
-    def raise_invalid_transition(current, requested)
-      raise InvalidTransition.new(
-        record: record, from: current, requested: requested,
-        allowed: allowed_targets(current)
-      )
-    end
-
-    def allowed_targets(current)
-      graph.edges.keys.select { |from, _to| from == current }.map(&:last)
     end
 
     # Checked at the first transition, not at mounting time: resolving an
@@ -311,7 +278,7 @@ module Statecraft
     end
 
     def warn_when_row_locking_unavailable
-      return unless base_class.connection.adapter_name.match?(/sqlite/i)
+      return unless base_class.connection_db_config.adapter.match?(/sqlite/i)
 
       Statecraft.warn(
         [configuration.machine_class.name, :sqlite_row_lock],

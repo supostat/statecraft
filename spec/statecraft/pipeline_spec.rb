@@ -62,6 +62,36 @@ RSpec.describe "transition pipeline" do
         .to raise_error(Statecraft::InvalidTransition, /allowed from cancelled: none/)
     end
 
+    it "reports an unknown event by name instead of rendering it as a state" do
+      order = Order.create!
+      expect { order.fire!(:teleport) }
+        .to raise_error(Statecraft::InvalidTransition, /unknown event :teleport for OrderFlow; events: :pay/)
+    end
+
+    it "reports an event that has no branch from the current state" do
+      order = Order.create!(state: "paid")
+      expect { order.fire!(:pay, metadata: { amount: 1 }) }
+        .to raise_error(Statecraft::InvalidTransition,
+                        /event :pay has no branch from paid.*branches: pending -> paid/)
+    end
+
+    it "transitions a machine declared with string names" do
+      stub_const("StringFlow", Class.new do
+        include Statecraft::Machine
+
+        state "draft", initial: true
+        state "sent"
+        transition from: "draft", to: "sent"
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      Order.state_machine(StringFlow, log: OrderTransition)
+
+      order = Order.create!(state: "draft")
+      order.transition_to!(:sent)
+      expect(order.state).to eq("sent")
+      expect(order.history.count).to eq(1)
+    end
+
     it "fails the guard before writing anything" do
       order = Order.create!
       expect { order.fire!(:pay, metadata: { amount: 0 }) }

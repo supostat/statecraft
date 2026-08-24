@@ -17,9 +17,9 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.3"
 
-  # .tt too: the generator templates are part of the shipped gem, and a
-  # *.rb-only mask silently published a generator without them.
-  spec.files = Dir["lib/**/*.{rb,tt}", "LICENSE.txt", "README.md"]
+  # .tt and USAGE too: the generator templates and help text are part of the
+  # shipped gem, and a *.rb-only mask silently published a generator without them.
+  spec.files = Dir["lib/**/*.{rb,tt}", "lib/**/USAGE", "LICENSE.txt", "README.md"]
   spec.require_paths = ["lib"]
 
   spec.add_dependency "activerecord", ">= 7.2", "< 9"

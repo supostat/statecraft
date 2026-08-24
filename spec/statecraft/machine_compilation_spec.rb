@@ -9,6 +9,42 @@ RSpec.describe "machine compilation" do
     end
   end
 
+  describe "name normalization" do
+    it "accepts strings for states, transitions, events and callback filters" do
+      flow = machine_class do
+        state "draft", initial: true
+        state "sent"
+        event "send_off", from: "draft", to: "sent"
+        after_transition ->(_record, _transition) {}, from: "draft", to: ["sent"], event: "send_off"
+      end
+
+      expect(flow.states).to eq(%i[draft sent])
+      expect(flow.initial_state).to eq(:draft)
+      expect(flow.events).to eq([:send_off])
+      expect(flow.compiled_graph.edges[%i[draft sent]]).not_to be_nil
+
+      callback = flow.compiled_graph.callbacks[:after_transition].first
+      expect(callback.from).to eq([:draft])
+      expect(callback.to).to eq([:sent])
+      expect(callback.event).to eq([:send_off])
+    end
+  end
+
+  describe "finalization freezes the DSL" do
+    it "raises FrozenError on state, transition and event after finalize!" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        transition from: :a, to: :b
+      end
+      flow.finalize!
+
+      expect { flow.state :late }.to raise_error(FrozenError)
+      expect { flow.transition from: :a, to: :b }.to raise_error(FrozenError)
+      expect { flow.event :late_event, from: :a, to: :b }.to raise_error(FrozenError)
+    end
+  end
+
   describe "the DSL" do
     let(:flow) do
       machine_class do

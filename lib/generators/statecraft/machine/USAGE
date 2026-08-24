@@ -1,0 +1,26 @@
+Description:
+    Creates everything one model needs for a statecraft state machine: the
+    migration (state column with a CHECK constraint for a fresh table, the
+    state_changed_at column, and the append-only per-model log table with a
+    cascade FK), the machine class, the readonly log model, the model itself
+    when it does not exist yet (an existing model gets the state_machine
+    mounting injected instead), and — once per application — the shared
+    ApplicationMachine parent.
+
+    Namespaced models are fully supported: every file lands by the full
+    path, and a table_name_prefix module is generated the way the Rails
+    model generator does it. For a model on a non-primary database the
+    migration lands in the migrations_paths configured for that database
+    (db/migrate when none is configured).
+
+Example:
+    bin/rails generate statecraft:machine Order
+    bin/rails generate statecraft:machine Shop::Order
+
+    This will create:
+        app/state_machines/application_machine.rb  (first run only)
+        app/state_machines/shop/order_flow.rb
+        app/models/shop.rb                         (namespace prefix module)
+        app/models/shop/order_transition.rb
+        app/models/shop/order.rb                   (or mounting injection)
+        db/migrate/XXXXXXXXXXXXXX_create_shop_order_state_machine.rb

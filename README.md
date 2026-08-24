@@ -113,9 +113,10 @@ do not run, and unsaved changes on other attributes are neither saved nor
 callbacks are the transition's callbacks.
 
 Bang variants return the created log record. Non-bang variants return it too,
-or `false` — and `false` means exactly "a guard said no or the edge is not
-declared" (`GuardFailed` / `InvalidTransition`). Everything else — including
-`TransitionConflict` — always raises, in both variants.
+or `false` — and `false` covers exactly three refusals: a guard said no, the
+edge is not declared, or the bypass policy refused a direct transition over
+an event-guarded edge (`GuardFailed` / `InvalidTransition`). Everything
+else — including `TransitionConflict` — always raises, in both variants.
 
 ## Guards, events and the bypass policy
 
@@ -217,7 +218,14 @@ symbol keys and values become strings, times become ISO-8601 strings — and
 then deep-frozen: **the guards see exactly what the log will store**, and a
 guard that mutates metadata dies with `FrozenError` in a transition and in a
 check alike. Unserializable values (a `Proc`, a model instance) fail
-instantly at the entrance, not inside the transaction.
+instantly at the entrance, not inside the transaction — and so do `NaN` and
+`Infinity`, which JSON cannot represent.
+
+`BigDecimal` is rejected deliberately, not by omission: jsonb would hand it
+back as a string or a float depending on the reader, silently breaking the
+"what the guards checked is what the log stored" promise. Pass money and
+other exact decimals as strings (`metadata: { price: order.total.to_s }`)
+and parse them in the guard.
 
 Facts of the transition moment (a price snapshot, a rules version) are
 collected by the caller: `order.pay!(metadata: { price: order.total })`.

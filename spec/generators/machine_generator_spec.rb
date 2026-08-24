@@ -11,8 +11,8 @@ RSpec.describe "statecraft:machine generator" do
     )
   end
 
-  def within_tmp
-    Dir.mktmpdir("statecraft-generator") { |tmp| yield tmp }
+  def within_tmp(&block)
+    Dir.mktmpdir("statecraft-generator", &block)
   end
 
   describe "a fresh model" do

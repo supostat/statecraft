@@ -102,5 +102,33 @@ RSpec.describe "transition chains" do
         expect(error.message).to include("->")
       end
     end
+
+    it "keeps the ceiling honest when identical loop frames repeat in the chain" do
+      stub_const("LoopFlow", Class.new do
+        include Statecraft::Machine
+
+        state :spinning, initial: true
+
+        event :spin, from: :spinning, to: :spinning
+
+        after_transition lambda { |record, transition|
+          next unless transition.metadata["spiral"]
+
+          record.fire!(:spin, metadata: { "probe" => true })
+          record.fire!(:spin, metadata: { "spiral" => true }) if record.history.count < 40
+        }
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      stub_const("OrderTransition", Class.new(ActiveRecord::Base) do
+        self.table_name = "order_transitions"
+
+        def readonly? = persisted?
+      end)
+      Order.state_machine(LoopFlow)
+      order = Order.create!(state: "spinning")
+
+      expect { order.fire!(:spin, metadata: { "spiral" => true }) }
+        .to raise_error(Statecraft::ChainDepthExceeded)
+    end
   end
 end

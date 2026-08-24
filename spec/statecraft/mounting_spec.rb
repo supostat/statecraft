@@ -147,6 +147,14 @@ RSpec.describe "mounting" do
   end
 
   describe "name conflicts at finalization" do
+    it "rejects an event named after the gem's own mounted surface" do
+      define_flow { event :fire, from: :pending, to: :paid }
+      define_order
+      define_order_log
+      expect { Order.state_machine(OrderFlow, helpers: true) }
+        .to raise_error(Statecraft::CompilationError, /statecraft itself mounts/)
+    end
+
     it "rejects a verb clashing with an instance method when helpers: true" do
       define_flow
       define_order do

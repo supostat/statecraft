@@ -179,6 +179,40 @@ RSpec.describe "guard and callback resolution" do
 
       expect(captured).to eq([record, { "m" => 2 }])
     end
+
+    it "dispatches a plain callable object by its call arity" do
+      guard_class = Class.new do
+        attr_reader :captured
+
+        def call(record, metadata)
+          @captured = [record, metadata]
+        end
+      end
+      guard = guard_class.new
+      machine_instance = machine_class { state :a, initial: true }.new
+      record = record_stub(7)
+
+      Statecraft::Machine::Handlers.invoke(machine_instance, guard, record, { "m" => 3 })
+
+      expect(guard.captured).to eq([record, { "m" => 3 }])
+    end
+
+    it "passes only the record to a unary callable object" do
+      guard_class = Class.new do
+        attr_reader :captured
+
+        def call(record)
+          @captured = record
+        end
+      end
+      guard = guard_class.new
+      machine_instance = machine_class { state :a, initial: true }.new
+      record = record_stub(8)
+
+      Statecraft::Machine::Handlers.invoke(machine_instance, guard, record, { "m" => 4 })
+
+      expect(guard.captured).to eq(record)
+    end
   end
 
   describe "the stateless machine instance" do

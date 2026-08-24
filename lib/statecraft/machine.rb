@@ -40,24 +40,28 @@ module Statecraft
       end
 
       def self.unary?(callable)
-        callable.arity == 1
+        arity = callable.respond_to?(:arity) ? callable.arity : callable.method(:call).arity
+        arity == 1
       end
     end
 
     # Class-level DSL collected declaratively and compiled by finalize!.
+    # Names arrive as symbols or strings interchangeably (the ActiveRecord
+    # idiom) and are normalized to symbols at the declaration line.
     module ClassMethods
       def state(name, initial: false)
-        declared_states << { name: name, initial: initial }
+        declared_states << { name: name.to_sym, initial: initial }
       end
 
       def transition(from:, to:, guard: nil, lock: false)
         declared_edges << {
-          from: from, to: to, guards: Array(guard), lock: lock || current_event_lock,
+          from: from.to_sym, to: to.to_sym, guards: Array(guard), lock: lock || current_event_lock,
           event: current_event_name
         }
       end
 
       def event(name, from: nil, to: nil, guard: nil, lock: false, &declarations)
+        name = name.to_sym
         declared_event_names << name
         if declarations
           if from || to
@@ -89,7 +93,9 @@ module Statecraft
 
           declared_callbacks[phase] << Callback.new(
             handler: callback_handler,
-            from: from && Array(from), to: to && Array(to), event: event && Array(event)
+            from: from && Array(from).map(&:to_sym),
+            to: to && Array(to).map(&:to_sym),
+            event: event && Array(event).map(&:to_sym)
           )
         end
       end
@@ -114,8 +120,11 @@ module Statecraft
         !@statecraft_compiled_graph.nil?
       end
 
+      # Compilation memoizes the graph and freezes the declaration lists, so a
+      # reopened machine class fails loudly on any late state/transition/event
+      # instead of silently ignoring it (callbacks already freeze in compile).
       def finalize!
-        @statecraft_compiled_graph ||= Compiler.new(self).compile
+        @statecraft_compiled_graph ||= Compiler.new(self).compile.tap { freeze_declarations }
       end
 
       def declared_states
@@ -135,6 +144,12 @@ module Statecraft
       end
 
       private
+
+      def freeze_declarations
+        declared_states.freeze
+        declared_edges.freeze
+        declared_event_names.freeze
+      end
 
       def current_event_name
         @statecraft_current_event && @statecraft_current_event[:name]
@@ -268,7 +283,7 @@ module Statecraft
         from_callbacks = machine_class.declared_callbacks.each_value.flat_map do |callbacks|
           callbacks.map(&:handler)
         end
-        (from_edges + from_callbacks).select { |handler| handler.is_a?(Symbol) }
+        (from_edges + from_callbacks).grep(Symbol)
       end
 
       def deep_freeze_edges(edges)
