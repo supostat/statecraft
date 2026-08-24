@@ -1,7 +1,8 @@
 # Development image for running the gem's test suite exactly as CI does.
 # RUBY_VERSION and AR_VERSION mirror the CI matrix axes, so a local run can
-# reproduce any cell of it:
-#   docker compose build --build-arg RUBY_VERSION=3.3
+# reproduce any cell of it (the env form also retags the image — a
+# --build-arg alone would put another Ruby under the old tag):
+#   RUBY_VERSION=3.3 docker compose build
 #   AR_VERSION=7.2 docker compose run --rm test
 ARG RUBY_VERSION=3.4
 FROM ruby:${RUBY_VERSION}-slim

@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # do not cancel in-progress production deployments (the Pages starter default)
+  cancel-in-progress: false
 
 jobs:
   build:
