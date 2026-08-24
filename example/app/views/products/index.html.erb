@@ -1,19 +1,12 @@
 <h1>Store</h1>
 
-<table>
-  <thead>
-    <tr><th>item</th><th>price</th><th></th></tr>
-  </thead>
-  <tbody>
-    <% @products.each do |product| %>
-      <tr>
-        <td><%= product.name %></td>
-        <td><%= price(product.price_cents) %></td>
-        <td>
-          <%= button_to "Add to cart", add_to_cart_path(product_id: product.id),
-                        method: :post, class: "transition-button" %>
-        </td>
-      </tr>
-    <% end %>
-  </tbody>
-</table>
+<div class="product-grid">
+  <% @products.each do |product| %>
+    <div class="product-card">
+      <div class="product-name"><%= product.name %></div>
+      <div class="product-price"><%= price(product.price_cents) %></div>
+      <%= button_to "Add to cart", add_to_cart_path(product_id: product.id),
+                    method: :post, class: "transition-button" %>
+    </div>
+  <% end %>
+</div>

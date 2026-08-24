@@ -1,86 +1,169 @@
-/* Handwritten, neutral, ~100 lines: every selector serves the readability of
-   a scene — state, actions, prediction, history. CSS for beauty's sake does
-   not pass the diff. */
+/* The store's product face — handwritten, no build step. Every selector
+   serves the readability of a scene: catalog, card, desk, feed. The deep
+   visual pass comes later; this is honest product structure. */
 
 * { box-sizing: border-box; }
+
+:root {
+  --ink: #1c2733;
+  --muted: #71808f;
+  --paper: #f6f7f9;
+  --card: #ffffff;
+  --line: #e3e7ec;
+  --accent: #2f6fab;
+  --accent-ink: #ffffff;
+  --ok-bg: #e8f6ee;
+  --ok-line: #2f9e63;
+  --warn-bg: #fdeceb;
+  --warn-line: #d64541;
+}
 
 body {
   margin: 0;
   font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 16px;
-  line-height: 1.5;
-  color: #1f2933;
-  background: #f8f9fb;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--paper);
 }
 
 code {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 0.9em;
-  background: #eef1f5;
+  background: #edf0f4;
   padding: 0.1em 0.35em;
   border-radius: 4px;
 }
 
-/* Header: the way back to the index is always one click. */
+/* Header: storefront on the left, the person you are on the right. */
 .site-header {
-  background: #1f2933;
-  padding: 0.6rem 1.5rem;
+  background: #16222e;
+  padding: 0.65rem 1.5rem;
 }
 
 .site-header nav {
   display: flex;
-  gap: 1.25rem;
-  align-items: baseline;
+  gap: 1.1rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .site-header a {
-  color: #e6e9ee;
+  color: #e6ebf1;
   text-decoration: none;
 }
 
-.site-header .brand { font-weight: 700; }
+.site-header a:hover { text-decoration: underline; }
+.site-header .brand { font-weight: 700; margin-right: 0.5rem; }
+
+.user-switcher {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: #9fb0c0;
+}
+
+.user-switcher select {
+  font: inherit;
+  padding: 0.2rem 0.4rem;
+  border-radius: 5px;
+  border: 1px solid #3c4c5c;
+  background: #223140;
+  color: #e6ebf1;
+}
+
+.switch-button {
+  font: inherit;
+  padding: 0.2rem 0.7rem;
+  border: 1px solid #3c4c5c;
+  border-radius: 5px;
+  background: #223140;
+  color: #e6ebf1;
+  cursor: pointer;
+}
 
 main {
-  max-width: 56rem;
+  max-width: 60rem;
   margin: 0 auto;
   padding: 1.5rem;
 }
 
-/* Flashes carry the gem's contract messages verbatim — they must be
-   unmissable and distinguishable by family. */
+/* Flashes carry contract messages — unmissable, distinguishable by family. */
 .flash {
-  max-width: 56rem;
+  max-width: 60rem;
   margin: 1rem auto 0;
   padding: 0.75rem 1rem;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid;
 }
 
-.flash-notice {
-  background: #e8f6ee;
-  border-color: #2f9e63;
+.flash-notice { background: var(--ok-bg); border-color: var(--ok-line); }
+.flash-alert { background: var(--warn-bg); border-color: var(--warn-line); }
+
+/* The catalog: a product grid, not a spreadsheet. */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1rem;
 }
 
-.flash-alert {
-  background: #fdeceb;
-  border-color: #d64541;
+.product-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-/* Tables render lists and history: the eye scans states column-first. */
+.product-name { font-weight: 600; }
+.product-price { color: var(--muted); }
+
+/* Status badges: the human word wears its state's color. */
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 600;
+  background: #edf0f4;
+  border: 1px solid var(--line);
+}
+
+.badge-pending { background: #fff7e6; border-color: #e0b95c; }
+.badge-paid { background: var(--ok-bg); border-color: var(--ok-line); }
+.badge-cancelled { background: #f0f1f3; border-color: #b9c1c9; color: var(--muted); }
+.badge-refunded { background: #eef2fb; border-color: #7d9bd1; }
+
+/* Tables: lists and history — states scan column-first. */
 table {
   width: 100%;
   border-collapse: collapse;
   margin: 0.5rem 0 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 th, td {
   text-align: left;
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid #e0e4ea;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
 }
 
-/* Transition buttons: rendered by the graph, never disabled by guards —
-   an enabled look that may still be refused is part of the lesson. */
+thead th {
+  background: #eef1f5;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+/* Action buttons come from the permitted intersection — an enabled look
+   that may still be refused is part of the lesson (the snapshot ages). */
 .transition-buttons {
   display: flex;
   gap: 0.5rem;
@@ -90,25 +173,44 @@ th, td {
 
 .transition-button {
   font: inherit;
-  padding: 0.4rem 0.9rem;
-  border: 1px solid #2c5f8a;
-  border-radius: 6px;
-  background: #33709f;
-  color: #fff;
+  padding: 0.45rem 1rem;
+  border: 1px solid #275d8f;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-ink);
   cursor: pointer;
 }
 
-/* The prediction panel is visually calmer than the buttons: a forecast,
-   not a control. */
+.transition-button:hover { filter: brightness(1.07); }
+
+.preview-button {
+  font: inherit;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  margin: 0.75rem 0;
+}
+
+/* The prediction panel reads calmer than the buttons: forecast, not control. */
 .available-panel {
   background: #eef4fa;
   border: 1px solid #d3e0ec;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 0.5rem 1rem;
   margin: 1rem 0;
 }
 
-.muted { color: #7b8794; }
+.filters a { margin-right: 0.6rem; }
 
-/* Refusals in the operations feed must be readable as refusals at a glance. */
+.muted { color: var(--muted); }
+
+/* Refusals in the operations feed read as refusals at a glance. */
 .refused { color: #b3352f; }

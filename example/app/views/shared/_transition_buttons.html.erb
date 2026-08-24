@@ -1,17 +1,14 @@
-<%# The graph gates the render, guards never gate the click. Buttons come from
-    Machine.transitions_from — the STATIC shape of the graph — and a rendered
-    button is never filtered or disabled by predicates: the panel is the
-    prediction, the flash is the execution. Rendered INSIDE the card's
-    metadata form: each button aims its own action via formaction, so the
-    submitted fields ride with whichever transition is clicked.
-    Locals: machine (the machine class), state, fire_url (event_name -> url). %>
+<%# The button = possibility × permission: the machine's transitions_from
+    crossed with the role's can?. Guards do not gate the render — a
+    metadata-reading guard refuses input, not possibility, and the refusal
+    is the flash's job. Rendered INSIDE the card's metadata form — each
+    button aims its own action via formaction, so the submitted fields ride
+    with whichever is clicked. Locals: record, fire_url (event_name -> url). %>
 <div class="transition-buttons">
-  <% machine.transitions_from(state).each do |edge| %>
-    <% edge[:events].each do |event_name| %>
-      <button type="submit" class="transition-button"
-              formaction="<%= fire_url.call(event_name) %>" formmethod="post">
-        <%= event_name %>
-      </button>
-    <% end %>
+  <% permitted_actions(record).each do |event_name| %>
+    <button type="submit" class="transition-button"
+            formaction="<%= fire_url.call(event_name) %>" formmethod="post">
+      <%= event_name %>
+    </button>
   <% end %>
 </div>

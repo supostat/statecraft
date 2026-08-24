@@ -33,10 +33,11 @@
 <p><strong>Total: <%= price(@order.total_cents) %></strong></p>
 
 <% if @order[:state] == "pending" %>
-  <% if @order.payment.nil? %>
+  <% if can?(:pay, @order) && @order.payment.nil? %>
     <%= button_to "Pay", pay_my_order_path(@order), method: :post, class: "transition-button" %>
   <% end %>
 
+  <% if can?(:cancel, @order) %>
   <%= form_with url: cancel_my_order_path(@order), method: :post, local: true do %>
     <fieldset>
       <legend>Changed your mind?</legend>
@@ -46,5 +47,6 @@
       </label>
       <button type="submit" class="preview-button">Cancel the order</button>
     </fieldset>
+  <% end %>
   <% end %>
 <% end %>

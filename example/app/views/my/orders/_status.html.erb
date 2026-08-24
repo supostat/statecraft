@@ -9,4 +9,4 @@
      when "cancelled" then "Cancelled"
      else order[:state]
      end %>
-<strong><%= status %></strong>
+<span class="badge badge-<%= order[:state] %>"><%= status %></span>

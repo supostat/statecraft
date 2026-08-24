@@ -24,28 +24,32 @@
   </fieldset>
 
   <%= render "shared/transition_buttons",
-             machine: OrderFlow,
-             state: @order[:state],
+             record: @order,
              fire_url: ->(event_name) { public_send("#{event_name}_admin_order_path", @order) } %>
 
   <button type="submit" class="preview-button">preview</button>
 <% end %>
 <%# /readme %>
 
-<div class="available-panel">
-  Bypass writes event: nil to the log — the history will show the muted
-  "direct (bypassed events)". The privileged admin_override next to it is a
-  different thing: a named event without a guard, and the log says so.
-</div>
+<% if bypass_cancel_available?(@order) %>
+  <div class="available-panel">
+    Bypass writes event: nil to the log — the history will show the muted
+    "direct (bypassed events)". The privileged admin_override next to it is a
+    different thing: a named event without a guard, and the log says so.
+  </div>
 
-<div class="transition-buttons">
-  <%= button_to "bypass cancel", bypass_cancel_admin_order_path(@order),
-                method: :post, class: "transition-button" %>
-  <% if @order[:state] == "paid" && @order.shipment.nil? %>
+  <div class="transition-buttons">
+    <%= button_to "bypass cancel", bypass_cancel_admin_order_path(@order),
+                  method: :post, class: "transition-button" %>
+  </div>
+<% end %>
+
+<% if can?(:create_shipment, @order) && @order[:state] == "paid" && @order.shipment.nil? %>
+  <div class="transition-buttons">
     <%= button_to "Create shipment", create_shipment_admin_order_path(@order),
                   method: :post, class: "transition-button" %>
-  <% end %>
-</div>
+  </div>
+<% end %>
 
 <%= render "shared/available_panel", record: @order, metadata: @metadata %>
 <%= render "shared/history", record: @order %>

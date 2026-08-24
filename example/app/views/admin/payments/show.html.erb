@@ -16,8 +16,7 @@
   </fieldset>
 
   <%= render "shared/transition_buttons",
-             machine: PaymentFlow,
-             state: @payment[:state],
+             record: @payment,
              fire_url: ->(event_name) { public_send("#{event_name}_admin_payment_path", @payment) } %>
 
   <button type="submit" class="preview-button">save and capture</button>

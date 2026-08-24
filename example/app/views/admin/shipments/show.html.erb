@@ -17,8 +17,7 @@
   </fieldset>
 
   <%= render "shared/transition_buttons",
-             machine: ShipmentFlow,
-             state: @shipment[:state],
+             record: @shipment,
              fire_url: ->(event_name) { public_send("#{event_name}_admin_shipment_path", @shipment) } %>
 <% end %>
 

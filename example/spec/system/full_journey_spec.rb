@@ -16,7 +16,7 @@ RSpec.describe "the full journey", type: :system do
     # The customer: catalog -> cart -> express checkout -> Pay.
     visit "/"
     expect(page).to have_current_path(products_path)
-    within("tr", text: "Walnut desk") { click_button "Add to cart" }
+    within(".product-card", text: "Walnut desk") { click_button "Add to cart" }
     visit cart_path
     expect(page).to have_text("Total: $799.00")
     click_link "Proceed to checkout"
@@ -57,7 +57,7 @@ RSpec.describe "the full journey", type: :system do
     # A second, credit checkout whose reasonless cancellation lands in the
     # feed as a refusal — told to the customer in storefront words.
     visit products_path
-    within("tr", text: "Ceramic vase") { click_button "Add to cart" }
+    within(".product-card", text: "Ceramic vase") { click_button "Add to cart" }
     visit checkout_path
     fill_in "customer_name", with: "Journey Jane"
     check "credit"

@@ -11,8 +11,8 @@ RSpec.describe "the storefront", type: :system do
     expect(page).to have_text("Walnut desk")
     expect(page).to have_text("$799.00")
 
-    within("tr", text: "Reading lamp") { click_button "Add to cart" }
-    within("tr", text: "Wool rug") { click_button "Add to cart" }
+    within(".product-card", text: "Reading lamp") { click_button "Add to cart" }
+    within(".product-card", text: "Wool rug") { click_button "Add to cart" }
 
     visit cart_path
     expect(page).to have_text("Reading lamp")
@@ -40,7 +40,7 @@ RSpec.describe "the storefront", type: :system do
 
   it "cancels with a reason in plain words, and refuses in plain words without one" do
     visit products_path
-    within("tr", text: "Ceramic vase") { click_button "Add to cart" }
+    within(".product-card", text: "Ceramic vase") { click_button "Add to cart" }
     visit checkout_path
     fill_in "customer_name", with: "Omar Reyes"
     click_button "Place the order"
@@ -58,7 +58,7 @@ RSpec.describe "the storefront", type: :system do
 
   it "a credit checkout births a CreditOrder and says so on the card" do
     visit products_path
-    within("tr", text: "Oak bookshelf") { click_button "Add to cart" }
+    within(".product-card", text: "Oak bookshelf") { click_button "Add to cart" }
     visit checkout_path
     fill_in "customer_name", with: "Petra Stein"
     check "credit"
