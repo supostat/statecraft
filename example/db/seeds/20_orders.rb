@@ -20,14 +20,15 @@ module OrderSeeds
   end
 
   # The two-role payment flow in seed form: the customer's Pay creates the
-  # pending payment, the operator's confirmation captures it and pays the
-  # order — one visible two-step link, no cross-model callback magic.
+  # pending payment, the operator's confirmation is the SAME service the
+  # desk uses — one link, one code path.
   def pay_order(order)
     payment = Payment.create!(number: "PAY-#{order.number}", order: order,
                               amount_cents: order.total_cents)
-    payment.capture!(metadata: { "note" => "seeded confirmation" })
-    order.pay!(metadata: { "note" => "seeded payment" })
-    order
+    ConfirmPayment.call(payment: payment)
+    # The service pays payment.order — a different instance; reload so the
+    # caller's snapshot is not stale.
+    order.reload
   end
 
   def request_payment(order)

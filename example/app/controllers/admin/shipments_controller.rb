@@ -26,6 +26,7 @@ module Admin
 
     def fire(event_name)
       shipment = Shipment.find(params[:id])
+      authorize! event_name, shipment
       shipment.fire!(event_name, metadata: submitted_metadata)
       redirect_to admin_shipment_path(shipment),
                   notice: "#{event_name} fired: the shipment is now #{shipment[:state]}."

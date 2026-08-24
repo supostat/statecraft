@@ -7,10 +7,8 @@ module Admin
   # heals in ApplicationController; a guard refusal is local to this form.
   class OrdersController < BaseController
     def index
-      scope = params[:state].to_s
-      @orders = OrderFlow.states.map(&:to_s).include?(scope) ? Order.public_send(scope) : Order.all
-      @orders = @orders.order(:number)
-      @active_state = scope
+      @orders = OrdersQuery.call(state: params[:state])
+      @active_state = params[:state].to_s
     end
 
     def show
@@ -43,6 +41,7 @@ module Admin
     # guard — the log will name it admin_override.
     def admin_override
       order = Order.find(params[:id])
+      authorize! :admin_override, order
       order.admin_override!(metadata: { "reason" => "admin override" })
       redirect_to admin_order_path(order),
                   notice: "admin_override fired: the order is now #{order[:state]}."
@@ -53,6 +52,7 @@ module Admin
     # "direct (bypassed events)".
     def bypass_cancel
       order = Order.find(params[:id])
+      authorize! :bypass_cancel, order
       order.transition_to!(:cancelled, bypass_events: true,
                                        metadata: { "reason" => "bypassed by admin" })
       redirect_to admin_order_path(order),
@@ -61,18 +61,18 @@ module Admin
 
     def create_shipment
       order = Order.find(params[:id])
-      if order[:state] != "paid" || order.shipment.present?
-        redirect_to admin_order_path(order), alert: "A shipment needs a paid order without one."
-      else
-        shipment = Shipment.create!(number: "SHIP-#{order.number}", order: order)
-        redirect_to admin_shipment_path(shipment), notice: "Shipment created."
-      end
+      authorize! :create_shipment, order
+      shipment = CreateShipment.call(order: order)
+      redirect_to admin_shipment_path(shipment), notice: "Shipment created."
+    rescue ArgumentError => error
+      redirect_to admin_order_path(order), alert: error.message.capitalize + "."
     end
 
     private
 
     def fire(event_name)
       @order = Order.find(params[:id])
+      authorize! event_name, @order
       @metadata = submitted_metadata
       @order.fire!(event_name, metadata: @metadata)
       redirect_to admin_order_path(@order),

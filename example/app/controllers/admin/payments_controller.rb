@@ -10,13 +10,10 @@ module Admin
       @payment = Payment.find(params[:id])
     end
 
-    # The operator's half of the two-role payment flow: confirming the
-    # payment captures it AND pays the order — one visible two-step link,
-    # no cross-model callback magic.
     def capture
       payment = Payment.find(params[:id])
-      payment.capture!(metadata: {})
-      payment.order.pay!(metadata: { "note" => "payment #{payment.number} confirmed" })
+      authorize! :capture, payment
+      ConfirmPayment.call(payment: payment)
       redirect_to admin_payment_path(payment),
                   notice: "capture fired: the payment is captured and the order is paid."
     end
@@ -26,6 +23,7 @@ module Admin
     # refuses to reload over unsaved changes. The rescue is the scene's moral.
     def save_and_capture
       @payment = Payment.find(params[:id])
+      authorize! :save_and_capture, @payment
       @payment.assign_attributes(amount_params)
       @payment.capture!(metadata: {})
       redirect_to admin_payment_path(@payment), notice: "saved and captured."
