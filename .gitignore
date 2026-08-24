@@ -1,7 +1,7 @@
 .vscode
 CLAUDE.md
 docs
-Gemfile.lock
+/Gemfile.lock
 design
 dist
 *.gem
