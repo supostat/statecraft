@@ -199,7 +199,13 @@ order.may_pay?(metadata: { amount: 100 })          # alias, with helpers: true
 order.available_events(metadata: { amount: 100 })  # => [:pay]
 order.available_transitions(metadata: {})          # => [#<to: :cancelled, via: [:direct]>]
 order.transitioned_to?(:paid)                      # strictly log-based
+OrderFlow.transitions_from(:pending)               # => [{ to: :paid, events: [:pay] }, ...]
 ```
+
+`transitions_from` is class-level and answers the graph's shape, not a
+prediction: no guards are consulted, a bare edge carries an empty `events`
+list, and a state outside the graph owns no edges. Pair it with
+`available_transitions` for the prediction.
 
 `available_transitions` tells you not only *where* you can go but *how*:
 `via` lists the events whose guards pass, plus `:direct` when the edge is

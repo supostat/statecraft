@@ -108,6 +108,18 @@ module Statecraft
         compiled_graph.events.keys
       end
 
+      # The graph's shape from one state: a frozen descriptor per outgoing
+      # edge, `events` empty for a bare edge. Shape, not a prediction — no
+      # guards are consulted, and a state outside the graph honestly owns no
+      # edges. Class-level on purpose: the answer is a property of the graph,
+      # never of a record.
+      def transitions_from(state)
+        normalized = state.to_sym
+        compiled_graph.edges.filter_map do |(from, _to), edge|
+          { to: edge.to, events: edge.event_names }.freeze if from == normalized
+        end.freeze
+      end
+
       def initial_state
         compiled_graph.initial_state
       end

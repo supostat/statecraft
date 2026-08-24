@@ -134,6 +134,19 @@ RSpec.describe "machine compilation" do
       expect(edge.edge_guards.length).to eq(1)
       expect(edge.event_guards.fetch(:go).length).to eq(1)
     end
+
+    it "collects several event names on one edge, each with its own guards" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, guard: ->(_record, _metadata) { true }
+        event :force_go, from: :a, to: :b
+      end
+      edge = flow.compiled_graph.edges[%i[a b]]
+      expect(edge.event_names).to eq(%i[go force_go])
+      expect(edge.event_guards.fetch(:go).length).to eq(1)
+      expect(edge.event_guards.fetch(:force_go)).to eq([])
+    end
   end
 
   describe "compilation errors" do

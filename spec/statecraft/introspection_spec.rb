@@ -85,6 +85,46 @@ RSpec.describe "introspection" do
     end
   end
 
+  describe "transitions_from" do
+    it "answers the graph's shape from a state as frozen {to, events} descriptors" do
+      descriptors = OrderFlow.transitions_from(:pending)
+      expected_shape = [
+        { to: :paid, events: [:pay] },
+        { to: :cancelled, events: [] }
+      ]
+      expect(descriptors).to eq(expected_shape)
+      expect(descriptors).to be_frozen
+      expect(descriptors).to all(be_frozen)
+    end
+
+    it "returns every event name of a multi-named edge in declaration order" do
+      flow = Class.new do
+        include Statecraft::Machine
+
+        state :pending, initial: true
+        state :cancelled
+
+        event :cancel, from: :pending, to: :cancelled, guard: ->(_record, _metadata) { true }
+        event :admin_override, from: :pending, to: :cancelled
+      end
+      expect(flow.transitions_from(:pending)).to eq([{ to: :cancelled, events: %i[cancel admin_override] }])
+    end
+
+    it "accepts a string state name per the DSL idiom" do
+      expect(OrderFlow.transitions_from("pending")).to eq(OrderFlow.transitions_from(:pending))
+    end
+
+    it "answers [] for a state outside the graph: no edges is the honest shape" do
+      expect(OrderFlow.transitions_from(:ghost)).to eq([])
+    end
+
+    it "consults no guards: the shape ignores metadata entirely" do
+      order = Order.create!
+      expect(order.available_transitions(metadata: { amount: 0 }).map(&:to)).to eq([:cancelled])
+      expect(OrderFlow.transitions_from(:pending).map { |descriptor| descriptor[:to] }).to eq(%i[paid cancelled])
+    end
+  end
+
   describe "transitioned_to?" do
     it "is strictly log-based: false for initial without a return" do
       order = Order.create!
