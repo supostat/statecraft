@@ -1,0 +1,25 @@
+<h1>Admin · Orders</h1>
+
+<p class="filters">
+  <%= link_to "all", admin_orders_path %>
+  <% OrderFlow.states.each do |state| %>
+    <%= link_to state, admin_orders_path(state: state) %>
+  <% end %>
+</p>
+
+<table>
+  <thead>
+    <tr><th>number</th><th>customer</th><th>kind</th><th>state</th><th>total</th></tr>
+  </thead>
+  <tbody>
+    <% @orders.each do |order| %>
+      <tr>
+        <td><%= link_to order.number, admin_order_path(order) %></td>
+        <td><%= order.customer_name %></td>
+        <td><%= order.is_a?(CreditOrder) ? "credit" : "regular" %></td>
+        <td><code><%= order[:state] %></code></td>
+        <td><%= price(order.total_cents) %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

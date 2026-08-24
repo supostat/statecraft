@@ -5,6 +5,13 @@ module My
   # gem's error texts never surface here — refusals become storefront
   # language, and the mechanics stay in the operator zone.
   class OrdersController < ApplicationController
+    # The staleness family in storefront words: the record moved on while
+    # the customer was looking — show the fresh card, say it humanly.
+    rescue_from Statecraft::InvalidTransition, Statecraft::TransitionConflict do |error|
+      redirect_to my_order_path(error.record),
+                  alert: "This order just changed — here is its current state."
+    end
+
     def index
       @orders = Order.where(id: my_order_ids).order(created_at: :desc)
     end

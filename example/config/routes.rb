@@ -25,40 +25,40 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :orders, only: %i[index show] do
-    member do
-      post :pay
-      post :cancel
-      post :refund
-      post :preview
-    end
-  end
-
-  resources :payments, only: %i[index show] do
-    member do
-      post :capture
-      post :save_and_capture
-    end
-  end
-
-  resources :shipments, only: %i[index show] do
-    member do
-      post :pack
-      post :ship
-      post :deliver
-    end
-  end
-
-  get "operations", to: "operations#index"
+  # The old public address now belongs to the customer.
+  get "orders", to: redirect("/my/orders")
 
   # admin is a route namespace, not a security boundary: the harness has no
-  # users and no auth by design (see README).
+  # users and no auth by design (see README). Everything the gem can show —
+  # panels, history, bypass, the feed — lives here, where operators work.
   namespace :admin do
-    resources :orders, only: :show do
+    resources :orders, only: %i[index show] do
       member do
+        post :pay
+        post :cancel
+        post :refund
+        post :preview
         post :admin_override
         post :bypass_cancel
+        post :create_shipment
       end
     end
+
+    resources :payments, only: %i[index show] do
+      member do
+        post :capture
+        post :save_and_capture
+      end
+    end
+
+    resources :shipments, only: %i[index show] do
+      member do
+        post :pack
+        post :ship
+        post :deliver
+      end
+    end
+
+    get "operations", to: "operations#index"
   end
 end

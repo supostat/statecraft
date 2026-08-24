@@ -17,7 +17,7 @@ RSpec.describe "the full journey", type: :system do
 
     order = OrderSeeds.place_order(number: "JRN-ORD", customer: "Journey Jane",
                                    items: { "Reading lamp" => 1 })
-    visit order_path(order)
+    visit admin_order_path(order)
     expect(page).to have_text("created in pending — the log is silent about birth")
     click_button "pay"
     expect(page).to have_text("pay fired: the order is now paid")
@@ -25,7 +25,7 @@ RSpec.describe "the full journey", type: :system do
 
     refused = OrderSeeds.place_order(number: "JRN-ORD-REFUSED", customer: "Journey Jane",
                                      items: { "Ceramic vase" => 1 })
-    visit order_path(refused)
+    visit admin_order_path(refused)
     click_button "cancel"
     expect(page).to have_text("Refused:")
     expect(page).to have_css("code", text: "pending")
@@ -35,22 +35,22 @@ RSpec.describe "the full journey", type: :system do
                              items: { "Wool rug" => 1 })
     )
     payment = paying.payment
-    visit payment_path(payment)
+    visit admin_payment_path(payment)
     click_button "capture"
-    expect(page).to have_text("capture fired: the payment is now captured")
+    expect(page).to have_text("capture fired: the payment is captured and the order is paid.")
 
     shipped_order = OrderSeeds.pay_order(
       OrderSeeds.place_order(number: "JRN-SHIP", customer: "Journey Jane",
                              items: { "Walnut desk" => 1 }, express: true)
     )
     shipment = Shipment.create!(number: "SHIP-JRN", order: shipped_order)
-    visit shipment_path(shipment)
+    visit admin_shipment_path(shipment)
     click_button "pack"
     expect(page).to have_text("pack fired: the shipment is now shipped")
     expect(page).to have_css(".history td", text: "pack")
     expect(page).to have_css(".history td", text: "ship")
 
-    visit operations_path
+    visit admin_operations_path
     expect(page).to have_text("Order ##{order.id}")
     expect(page).to have_css("tr", text: "pay")
     expect(page).to have_css(".refused", text: "refused: guard_failed")

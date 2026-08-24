@@ -1,18 +1,51 @@
-<h1>Admin · Order <%= @order.number %></h1>
+<h1>Admin · Order <%= @order.number %>
+  <span class="muted">(<%= @order.is_a?(CreditOrder) ? "credit" : "regular" %> · <%= @order.customer_name %>)</span>
+</h1>
 
-<p>State: <code><%= @order[:state] %></code> · <%= link_to "back to the card", order_path(@order) %></p>
+<p>
+  State: <code><%= @order[:state] %></code>
+  · total: <%= price(@order.total_cents) %>
+  <% if @order.payment %>
+    · <%= link_to "payment #{@order.payment.number}", admin_payment_path(@order.payment) %>
+  <% end %>
+  <% if @order.shipment %>
+    · <%= link_to "shipment #{@order.shipment.number}", admin_shipment_path(@order.shipment) %>
+  <% end %>
+</p>
+
+<%# readme: preview-pattern %>
+<%= form_with url: preview_admin_order_path(@order), method: :post, local: true do %>
+  <fieldset>
+    <legend>Metadata for the next action</legend>
+    <label>
+      reason
+      <input type="text" name="metadata[reason]" value="<%= @metadata["reason"] %>">
+    </label>
+  </fieldset>
+
+  <%= render "shared/transition_buttons",
+             machine: OrderFlow,
+             state: @order[:state],
+             fire_url: ->(event_name) { public_send("#{event_name}_admin_order_path", @order) } %>
+
+  <button type="submit" class="preview-button">preview</button>
+<% end %>
+<%# /readme %>
 
 <div class="available-panel">
   Bypass writes event: nil to the log — the history will show the muted
-  "direct (bypassed events)". The privileged event next to it is a different
-  thing: a named event without a guard, and the log says so.
+  "direct (bypassed events)". The privileged admin_override next to it is a
+  different thing: a named event without a guard, and the log says so.
 </div>
 
 <div class="transition-buttons">
-  <%= button_to "admin_override", admin_override_admin_order_path(@order),
-                method: :post, class: "transition-button" %>
   <%= button_to "bypass cancel", bypass_cancel_admin_order_path(@order),
                 method: :post, class: "transition-button" %>
+  <% if @order[:state] == "paid" && @order.shipment.nil? %>
+    <%= button_to "Create shipment", create_shipment_admin_order_path(@order),
+                  method: :post, class: "transition-button" %>
+  <% end %>
 </div>
 
+<%= render "shared/available_panel", record: @order, metadata: @metadata %>
 <%= render "shared/history", record: @order %>

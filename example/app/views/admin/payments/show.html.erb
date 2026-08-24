@@ -1,11 +1,12 @@
-<h1>Payment <%= @payment.number %></h1>
+<h1>Admin · Payment <%= @payment.number %></h1>
 
 <p>
   State: <code><%= @payment[:state] %></code>
-  · amount: <%= @payment.amount_cents %>c
+  · amount: <%= price(@payment.amount_cents) %>
+  · <%= link_to "order #{@payment.order.number}", admin_order_path(@payment.order) %>
 </p>
 
-<%= form_with url: save_and_capture_payment_path(@payment), method: :post, local: true do %>
+<%= form_with url: save_and_capture_admin_payment_path(@payment), method: :post, local: true do %>
   <fieldset>
     <legend>Edit and act</legend>
     <label>
@@ -17,7 +18,7 @@
   <%= render "shared/transition_buttons",
              machine: PaymentFlow,
              state: @payment[:state],
-             fire_url: ->(event_name) { public_send("#{event_name}_payment_path", @payment) } %>
+             fire_url: ->(event_name) { public_send("#{event_name}_admin_payment_path", @payment) } %>
 
   <button type="submit" class="preview-button">save and capture</button>
 <% end %>

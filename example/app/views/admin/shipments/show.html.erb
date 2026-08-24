@@ -1,0 +1,25 @@
+<h1>Admin · Shipment <%= @shipment.number %>
+  <span class="muted">(<%= @shipment.express? ? "express" : "regular" %>)</span>
+</h1>
+
+<p>
+  State: <code><%= @shipment[:state] %></code>
+  · <%= link_to "order #{@shipment.order.number}", admin_order_path(@shipment.order) %>
+</p>
+
+<%= form_with url: pack_admin_shipment_path(@shipment), method: :post, local: true do %>
+  <fieldset>
+    <legend>Metadata for the next action</legend>
+    <label>
+      note
+      <input type="text" name="metadata[note]">
+    </label>
+  </fieldset>
+
+  <%= render "shared/transition_buttons",
+             machine: ShipmentFlow,
+             state: @shipment[:state],
+             fire_url: ->(event_name) { public_send("#{event_name}_admin_shipment_path", @shipment) } %>
+<% end %>
+
+<%= render "shared/history", record: @shipment %>

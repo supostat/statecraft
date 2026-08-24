@@ -18,9 +18,11 @@ class ApplicationController < ActionController::Base
 
   private
 
-  # The fresh card of whatever record went stale; base_class keeps STI
-  # descendants on their parent's route.
+  # The fresh operator card of whatever record went stale; base_class keeps
+  # STI descendants on their parent's route. The customer zone overrides the
+  # family with storefront language.
   def stale_record_path(record)
-    url_for(controller: "/#{record.class.base_class.name.tableize}", action: :show, id: record.id)
+    url_for(controller: "/admin/#{record.class.base_class.name.tableize}",
+            action: :show, id: record.id)
   end
 end
