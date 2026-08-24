@@ -1,8 +1,29 @@
 # frozen_string_literal: true
 
 Rails.application.routes.draw do
-  # The root always lands on Orders.
-  root to: redirect("/orders")
+  # The storefront is the front door.
+  root to: redirect("/products")
+
+  resources :products, only: :index
+
+  resource :cart, only: :show, controller: "carts" do
+    post "add/:product_id", action: :add, as: :add_to
+    post "remove/:product_id", action: :remove, as: :remove_from
+  end
+
+  get "checkout", to: "checkouts#new"
+  post "checkout", to: "checkouts#create"
+
+  # The customer's own orders: found by the session, described in human
+  # words — the gem's vocabulary stays in the operator zone.
+  namespace :my do
+    resources :orders, only: %i[index show] do
+      member do
+        post :pay
+        post :cancel
+      end
+    end
+  end
 
   resources :orders, only: %i[index show] do
     member do

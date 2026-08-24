@@ -1,0 +1,12 @@
+<%# The customer-facing status: raw state names belong to the operator zone,
+    the storefront speaks human. Locals: order. %>
+<% status =
+     case order[:state]
+     when "pending"
+       order.payment.present? ? "Payment pending confirmation" : "Awaiting payment"
+     when "paid" then "Paid"
+     when "refunded" then "Refunded"
+     when "cancelled" then "Cancelled"
+     else order[:state]
+     end %>
+<strong><%= status %></strong>

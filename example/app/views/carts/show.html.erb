@@ -1,0 +1,29 @@
+<h1>Your cart</h1>
+
+<% if @lines.empty? %>
+  <p class="muted">Nothing here yet — <%= link_to "browse the store", products_path %>.</p>
+<% else %>
+  <table>
+    <thead>
+      <tr><th>item</th><th>qty</th><th>price</th><th>line</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% @lines.each do |product, quantity| %>
+        <tr>
+          <td><%= product.name %></td>
+          <td><%= quantity %></td>
+          <td><%= price(product.price_cents) %></td>
+          <td><%= price(product.price_cents * quantity) %></td>
+          <td>
+            <%= button_to "remove", remove_from_cart_path(product_id: product.id),
+                          method: :post, class: "transition-button" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <p><strong>Total: <%= price(@total_cents) %></strong></p>
+
+  <p><%= link_to "Proceed to checkout", checkout_path %></p>
+<% end %>

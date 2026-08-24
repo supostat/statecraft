@@ -12,8 +12,8 @@ require "rails_helper"
 RSpec.describe "the full journey", type: :system do
   it "walks seed -> pay -> refusal -> capture -> cascade -> the operations log" do
     visit "/"
-    expect(page).to have_current_path(orders_path)
-    expect(page).to have_link("ORD-1001")
+    expect(page).to have_current_path(products_path)
+    expect(page).to have_text("Walnut desk")
 
     order = OrderSeeds.place_order(number: "JRN-ORD", customer: "Journey Jane",
                                    items: { "Reading lamp" => 1 })

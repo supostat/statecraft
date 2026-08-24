@@ -1,0 +1,50 @@
+<h1>Order <%= @order.number %></h1>
+
+<p>
+  Status: <%= render "status", order: @order %>
+  <% if @order.is_a?(CreditOrder) %>
+    <span class="muted">· paid on credit</span>
+  <% end %>
+  <% if @order.express? %>
+    <span class="muted">· express delivery</span>
+  <% end %>
+</p>
+
+<% if @order.shipment %>
+  <p>Delivery: <strong><%= shipping_status(@order.shipment) %></strong></p>
+<% end %>
+
+<table>
+  <thead>
+    <tr><th>item</th><th>qty</th><th>price</th><th>line</th></tr>
+  </thead>
+  <tbody>
+    <% @order.items.includes(:product).each do |item| %>
+      <tr>
+        <td><%= item.product.name %></td>
+        <td><%= item.quantity %></td>
+        <td><%= price(item.unit_price_cents) %></td>
+        <td><%= price(item.line_total_cents) %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<p><strong>Total: <%= price(@order.total_cents) %></strong></p>
+
+<% if @order[:state] == "pending" %>
+  <% if @order.payment.nil? %>
+    <%= button_to "Pay", pay_my_order_path(@order), method: :post, class: "transition-button" %>
+  <% end %>
+
+  <%= form_with url: cancel_my_order_path(@order), method: :post, local: true do %>
+    <fieldset>
+      <legend>Changed your mind?</legend>
+      <label>
+        Reason
+        <input type="text" name="metadata[reason]">
+      </label>
+      <button type="submit" class="preview-button">Cancel the order</button>
+    </fieldset>
+  <% end %>
+<% end %>

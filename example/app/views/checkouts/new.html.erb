@@ -1,0 +1,36 @@
+<h1>Checkout</h1>
+
+<table>
+  <tbody>
+    <% @lines.each do |product, quantity| %>
+      <tr>
+        <td><%= product.name %></td>
+        <td><%= quantity %> × <%= price(product.price_cents) %></td>
+      </tr>
+    <% end %>
+    <tr>
+      <td><strong>Total</strong></td>
+      <td><strong><%= price(@total_cents) %></strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<%= form_with url: checkout_path, method: :post, local: true do %>
+  <fieldset>
+    <legend>Your details</legend>
+    <label>
+      Your name
+      <input type="text" name="customer_name" required>
+    </label>
+    <label>
+      <input type="checkbox" name="express" value="1">
+      Express delivery
+    </label>
+    <label>
+      <input type="checkbox" name="credit" value="1">
+      Pay on credit
+    </label>
+  </fieldset>
+
+  <button type="submit" class="transition-button">Place the order</button>
+<% end %>
