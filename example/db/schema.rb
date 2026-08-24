@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_120003) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_124348) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -63,9 +63,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_120003) do
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.index ["state"], name: "index_payments_on_state"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'captured'::character varying]::text[])", name: "payments_state_check"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'captured'::character varying::text])", name: "payments_state_check"
+  end
+
+  create_table "shipment_transitions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event"
+    t.string "from_state", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "shipment_id", null: false
+    t.string "to_state", null: false
+    t.index ["shipment_id", "id"], name: "index_shipment_transitions_on_shipment_id_and_id"
+  end
+
+  create_table "shipments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "express", default: false, null: false
+    t.string "number", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["state"], name: "index_shipments_on_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'packed'::character varying, 'shipped'::character varying, 'delivered'::character varying]::text[])", name: "shipments_state_check"
+  end
+
+  create_table "shop_order_transitions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event"
+    t.string "from_state", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "order_id", null: false
+    t.string "to_state", null: false
+    t.index ["order_id", "id"], name: "index_shop_order_transitions_on_order_id_and_id"
+  end
+
+  create_table "shop_orders", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "state_changed_at"
+    t.datetime "updated_at", null: false
+    t.index ["state"], name: "index_shop_orders_on_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying]::text[])", name: "shop_orders_state_check"
   end
 
   add_foreign_key "order_transitions", "orders", on_delete: :cascade
   add_foreign_key "payment_transitions", "payments", on_delete: :cascade
+  add_foreign_key "shipment_transitions", "shipments", on_delete: :cascade
+  add_foreign_key "shop_order_transitions", "shop_orders", column: "order_id", on_delete: :cascade
 end

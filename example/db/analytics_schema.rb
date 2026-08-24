@@ -10,8 +10,28 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 0) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_120005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
+  create_table "analytics_event_transitions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event"
+    t.bigint "event_id", null: false
+    t.string "from_state", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "to_state", null: false
+    t.index ["event_id", "id"], name: "index_analytics_event_transitions_on_event_id_and_id"
+  end
+
+  create_table "analytics_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.string "state", default: "recorded", null: false
+    t.datetime "updated_at", null: false
+    t.index ["state"], name: "index_analytics_events_on_state"
+    t.check_constraint "state::text = ANY (ARRAY['recorded'::character varying, 'archived'::character varying]::text[])", name: "analytics_events_state_check"
+  end
+
+  add_foreign_key "analytics_event_transitions", "analytics_events", column: "event_id", on_delete: :cascade
 end

@@ -109,3 +109,6 @@ th, td {
 }
 
 .muted { color: #7b8794; }
+
+/* Refusals in the operations feed must be readable as refusals at a glance. */
+.refused { color: #b3352f; }

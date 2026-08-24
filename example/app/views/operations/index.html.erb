@@ -1,0 +1,36 @@
+<h1>Operations log</h1>
+
+<p class="muted">
+  Insertion order (by id): a nested chain link publishes from inside its
+  parent's pipeline, so a cascade's pair reads inverted — the inner
+  transition lands first.
+</p>
+
+<table class="operations">
+  <thead>
+    <tr><th>#</th><th>record</th><th>transition</th><th>via</th><th>outcome</th></tr>
+  </thead>
+  <tbody>
+    <% @entries.each do |entry| %>
+      <tr>
+        <td class="muted"><%= entry.id %></td>
+        <td><%= entry.record_class %> #<%= entry.record_id %></td>
+        <td><code><%= entry.from_state %></code> → <code><%= entry.to_state %></code></td>
+        <td>
+          <% if entry.event_name %>
+            <%= entry.event_name %>
+          <% else %>
+            <span class="muted">direct (bypassed events)</span>
+          <% end %>
+        </td>
+        <td>
+          <% if entry.outcome == "refused" %>
+            <span class="refused">refused: <%= entry.reason %></span>
+          <% else %>
+            <%= entry.outcome %>
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
