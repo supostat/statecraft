@@ -15,11 +15,9 @@ cp site/index.html dist/index.html
 cp site/tokens.css dist/tokens.css
 cp site/og-image.png dist/og-image.png
 
-# design/ lives outside git (working design layer). When it is present
-# locally, the tracked production copy must match it — drift fails red.
-if [ -f design/system/tokens.css ] && ! cmp -s design/system/tokens.css site/tokens.css; then
-  fail "site/tokens.css drifted from design/system/tokens.css; re-copy after finishing design work"
-fi
+# The design/ layer now belongs to the example store (its tokens are the
+# shop's), so the landing's tokens live independently in site/tokens.css —
+# no cross-check against design/system/tokens.css anymore.
 
 for leftover in etalon-switcher data-fixture design-fixtures design-states setFixture; do
   if grep -q "$leftover" dist/index.html; then

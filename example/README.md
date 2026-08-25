@@ -22,13 +22,17 @@ Three demo people live in the top-bar switcher — Uma (user), Mark (manager)
 and Ada (admin) — and picking one is the whole "login": there is no
 authentication by design, only authorization. Permissions are CanCanCan's:
 the `Ability` class maps roles straight onto the machines' events, and every
-action button renders only in the intersection of the graph's possibility
-(`Machine.transitions_from`) and the role's permission (`can?`). Everyone
-shops and pays their own orders; a manager works the desks but pays no one
-else's order — that path goes through payment confirmation; an admin owns
-the privileged edge paths (`admin_override`, bypass). Guards never gate the
-render: a metadata-reading guard refuses input, not possibility, and the
-guard-aware panel carries the prediction.
+action button renders in the intersection of the machine's offering
+(`offerable_events` — the graph filtered by the record layer of the guards)
+and the role's permission (`can?`). Everyone shops and pays their own
+orders; a manager works the desks but pays no one else's order — that path
+goes through payment confirmation; an admin owns the privileged edge paths
+(`admin_override`, bypass). Input guards never gate the render — a
+metadata-reading guard refuses input, not possibility, and the guard-aware
+panel carries the prediction — while the record layer gates it honestly: a
+credit order is not offered `cancel` at all, the desk's "Not offered" panel
+names the refusing guard (`refusals_for`), and the storefront says the same
+fact in human words.
 
 `admin` stays a route namespace, not a security boundary.
 

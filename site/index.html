@@ -307,7 +307,7 @@
        History is an append-only log with write-once metadata.
        Built for ActiveRecord; Rails is optional.</p>
     <ul class="badges">
-      <li>MIT</li><li>gem v0.1.2</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
+      <li>MIT</li><li>gem v0.2.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
     </ul>
     <p class="cta">
       <a class="btn btn-primary" href="#quick-start">Get started</a>
@@ -319,9 +319,11 @@
       <pre><code><span class="tok-k">class</span> OrderFlow &lt; ApplicationMachine
   state <span class="tok-s">:pending</span>, initial: <span class="tok-k">true</span>
   state <span class="tok-s">:paid</span>
+  state <span class="tok-s">:refunded</span>
   state <span class="tok-s">:cancelled</span>
 
   event <span class="tok-s">:pay</span>, from: <span class="tok-s">:pending</span>, to: <span class="tok-s">:paid</span>, guard: <span class="tok-s">:payable?</span>
+  event <span class="tok-s">:refund</span>, from: <span class="tok-s">:paid</span>, to: <span class="tok-s">:refunded</span>, record_guard: <span class="tok-s">:refundable?</span>
   transition from: <span class="tok-s">:pending</span>, to: <span class="tok-s">:cancelled</span>
 
   after_commit <span class="tok-s">:enqueue_receipt</span>, event: [<span class="tok-s">:pay</span>]
@@ -331,6 +333,8 @@
   <span class="tok-k">def</span> payable?(order, metadata)
     metadata[<span class="tok-str">"amount"</span>].to_i.positive?
   <span class="tok-k">end</span>
+
+  <span class="tok-k">def</span> refundable?(order) = order.refundable?
 <span class="tok-k">end</span>
 
 order.pay!(metadata: { amount: <span class="tok-str">100</span> })  <span class="tok-c"># =&gt; the created OrderTransition row</span>
@@ -377,7 +381,7 @@ Order.paid.count                          <span class="tok-c"># plain WHERE, zer
       <div class="rung"><span class="step"><span class="n">2</span>normalize + freeze</span>
         <span class="what">metadata round-trips through jsonb and is deep-frozen: guards see what the log will store</span></div>
       <div class="rung"><span class="step"><span class="n">3</span>guards</span>
-        <span class="what">edge guards always, event guards on their event; pure predicates, enforced rather than declared</span></div>
+        <span class="what">edge guards always, event guards on their event; two natures — the record layer judges the record alone, the input layer judges the metadata</span></div>
       <div class="rung rung-heart"><span class="step"><span class="n">4</span>CAS update</span>
         <span class="what"><code>UPDATE … WHERE state = expected</code>; zero rows means somebody else won</span></div>
       <div class="rung"><span class="step"><span class="n">5</span>log INSERT</span>
@@ -545,6 +549,10 @@ order.transitioned_to?(<span class="tok-s">:paid</span>)  <span class="tok-c"># 
       <div class="feature"><span class="tag">introspection</span><h3>Honest availability answers</h3>
         <p><code>available_transitions</code> tells you where <em>and how</em>:
            via events whose guards pass, plus <code>:direct</code> for unguarded edges.</p></div>
+      <div class="feature"><span class="tag">offering</span><h3>Buttons the machine offers</h3>
+        <p><code>offerable_events</code> is the graph filtered by the record layer — an input
+           guard never hides the form its input arrives through — and
+           <code>refusals_for</code> names the guard that said no.</p></div>
       <div class="feature"><span class="tag">telemetry</span><h3>Conflict rates on a dashboard</h3>
         <p><code>transition.statecraft</code> and <code>transition_failed.statecraft</code>
            with the failure reason: contention becomes a metric, not a mystery.</p></div>

@@ -3,14 +3,21 @@
 class <%= class_name %>Flow < ApplicationMachine
   state :pending, initial: true
   # state :paid
+  # state :refunded
   #
   # event :pay, from: :pending, to: :paid, guard: :payable?
+  # event :refund, from: :paid, to: :refunded, record_guard: :refundable?
   #
-  # Guards and callbacks resolve to instance methods of this class:
+  # Guards and callbacks resolve to instance methods of this class, and a
+  # guard declares its nature: guard: judges the input and receives
+  # (record, metadata); record_guard: judges the record alone (arity 1,
+  # compiler-enforced) — delegate it to a domain predicate on the model:
   #
   # private
   #
   # def payable?(record, metadata)
   #   metadata["amount"].to_i.positive?
   # end
+  #
+  # def refundable?(record) = record.refundable?
 end
