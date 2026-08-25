@@ -7,7 +7,12 @@ module Statecraft
   # Guard and callback symbols resolve to instance methods of the machine
   # class; callables are honored with a plain `call` and arity dispatch.
   module Machine
-    Edge = Struct.new(:from, :to, :lock, :edge_guards, :event_names, :event_guards, keyword_init: true)
+    # edge_guards / event_guards carry the FULL lists of both layers in
+    # record-then-input order — execution and the prediction run them as one
+    # sequence. The parallel *_record_guards fields hold only the record
+    # layer; nothing but the offering introspection reads them.
+    Edge = Struct.new(:from, :to, :lock, :edge_guards, :edge_record_guards,
+                      :event_names, :event_guards, :event_record_guards, keyword_init: true)
     Callback = Struct.new(:handler, :from, :to, :event, keyword_init: true)
     CompiledGraph = Struct.new(
       :states, :initial_state, :edges, :events, :callbacks,
@@ -53,14 +58,16 @@ module Statecraft
         declared_states << { name: name.to_sym, initial: initial }
       end
 
-      def transition(from:, to:, guard: nil, lock: false)
+      def transition(from:, to:, guard: nil, record_guard: nil, lock: false)
         declared_edges << {
-          from: from.to_sym, to: to.to_sym, guards: Array(guard), lock: lock || current_event_lock,
+          from: from.to_sym, to: to.to_sym,
+          guards: Array(guard), record_guards: Array(record_guard),
+          lock: lock || current_event_lock,
           event: current_event_name
         }
       end
 
-      def event(name, from: nil, to: nil, guard: nil, lock: false, &declarations)
+      def event(name, from: nil, to: nil, guard: nil, record_guard: nil, lock: false, &declarations)
         name = name.to_sym
         declared_event_names << name
         if declarations
@@ -79,7 +86,7 @@ module Statecraft
 
           @statecraft_current_event = { name: name, lock: false }
           begin
-            transition(from: from, to: to, guard: guard, lock: lock)
+            transition(from: from, to: to, guard: guard, record_guard: record_guard, lock: lock)
           ensure
             @statecraft_current_event = nil
           end
@@ -188,6 +195,7 @@ module Statecraft
         edges = compile_edges(states)
         events = compile_events(edges)
         resolve_symbols(edges)
+        assert_record_guards_unary(edges)
         CompiledGraph.new(
           states: states.freeze,
           initial_state: initial,
@@ -240,7 +248,9 @@ module Statecraft
       def build_edge(declaration)
         Edge.new(
           from: declaration[:from], to: declaration[:to], lock: declaration[:lock],
-          edge_guards: declaration[:guards], event_names: [], event_guards: {}
+          edge_guards: declaration[:record_guards] + declaration[:guards],
+          edge_record_guards: declaration[:record_guards],
+          event_names: [], event_guards: {}, event_record_guards: {}
         )
       end
 
@@ -248,14 +258,16 @@ module Statecraft
         event_name = declaration[:event]
         edge ||= Edge.new(
           from: declaration[:from], to: declaration[:to], lock: false,
-          edge_guards: [], event_names: [], event_guards: {}
+          edge_guards: [], edge_record_guards: [],
+          event_names: [], event_guards: {}, event_record_guards: {}
         )
         if edge.event_names.include?(event_name)
           raise CompilationError, "event #{event_name.inspect} declares edge #{pair_name(pair)} twice"
         end
 
         edge.event_names << event_name
-        edge.event_guards[event_name] = declaration[:guards]
+        edge.event_guards[event_name] = declaration[:record_guards] + declaration[:guards]
+        edge.event_record_guards[event_name] = declaration[:record_guards]
         edge.lock ||= declaration[:lock]
         edge
       end
@@ -298,12 +310,38 @@ module Statecraft
         (from_edges + from_callbacks).grep(Symbol)
       end
 
+      # A record guard promises to judge the record alone, and the promise is
+      # held by shape: it must accept exactly one argument, so it physically
+      # cannot read the input it claims not to need.
+      def assert_record_guards_unary(edges)
+        edges.each_value do |edge|
+          record_guards = edge.edge_record_guards + edge.event_record_guards.values.flatten
+          record_guards.each do |guard|
+            arity = record_guard_arity(guard)
+            next if arity == 1
+
+            label = guard.is_a?(Symbol) ? guard.inspect : "the callable"
+            raise CompilationError,
+                  "record_guard #{label} must take exactly the record (arity 1), got arity #{arity}"
+          end
+        end
+      end
+
+      def record_guard_arity(guard)
+        return machine_class.instance_method(guard).arity if guard.is_a?(Symbol)
+
+        guard.respond_to?(:arity) ? guard.arity : guard.method(:call).arity
+      end
+
       def deep_freeze_edges(edges)
         edges.each_value do |edge|
           edge.edge_guards.freeze
+          edge.edge_record_guards.freeze
           edge.event_names.freeze
           edge.event_guards.each_value(&:freeze)
           edge.event_guards.freeze
+          edge.event_record_guards.each_value(&:freeze)
+          edge.event_record_guards.freeze
           edge.freeze
         end
         edges.freeze

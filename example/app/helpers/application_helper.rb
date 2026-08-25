@@ -1,17 +1,15 @@
 # frozen_string_literal: true
 
 module ApplicationHelper
-  # The button = the graph's POSSIBILITY crossed with the role's PERMISSION:
-  # transitions_from says what edges leave this state, can? says who may
-  # fire them. Guards stay out of this on purpose — a guard that reads
-  # metadata (a cancellation reason) refuses INPUT, not possibility, and
-  # hiding the button would hide the form the input arrives through. The
-  # panel below is the guard-aware prediction; the flash is the execution.
+  # The button = the machine's OFFERING crossed with the role's PERMISSION:
+  # offerable_events is the graph filtered by the record layer of the guards
+  # (a credit order is not offered cancel at all), can? says who may fire.
+  # Input guards stay out on purpose — a guard that reads metadata refuses
+  # INPUT, not possibility, and hiding the button would hide the form the
+  # input arrives through. The panel is the full guard-aware prediction;
+  # the flash is the execution.
   def permitted_actions(record)
-    machine = record.class.statecraft_mounting.machine_class
-    machine.transitions_from(record[:state])
-           .flat_map { |edge| edge[:events] }
-           .select { |event| can?(event, record) }
+    record.offerable_events.select { |event| can?(event, record) }
   end
 
   # Bypass is not an event, so it never appears in via: the button shows

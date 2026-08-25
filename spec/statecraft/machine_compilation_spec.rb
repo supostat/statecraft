@@ -273,4 +273,90 @@ RSpec.describe "machine compilation" do
       expect(flow.finalize!).to equal(flow.finalize!)
     end
   end
+
+  describe "guard layers" do
+    it "compiles event guards as one record-first list plus a parallel record view" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :kind_ok?, guard: :input_ok?
+
+        def kind_ok?(_record) = true
+        def input_ok?(_record, _metadata) = true
+      end
+
+      edge = flow.compiled_graph.edges[%i[a b]]
+      expect(edge.event_guards[:go]).to eq(%i[kind_ok? input_ok?])
+      expect(edge.event_record_guards[:go]).to eq(%i[kind_ok?])
+      expect(edge.edge_guards).to eq([])
+    end
+
+    it "compiles edge guards the same way on a bare transition" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        transition from: :a, to: :b, record_guard: :kind_ok?, guard: :input_ok?
+
+        def kind_ok?(_record) = true
+        def input_ok?(_record, _metadata) = true
+      end
+
+      edge = flow.compiled_graph.edges[%i[a b]]
+      expect(edge.edge_guards).to eq(%i[kind_ok? input_ok?])
+      expect(edge.edge_record_guards).to eq(%i[kind_ok?])
+    end
+
+    it "keeps event record guards inside the event layer, so bypass skips them with it" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :kind_ok?
+
+        def kind_ok?(_record) = true
+      end
+
+      edge = flow.compiled_graph.edges[%i[a b]]
+      expect(edge.edge_guards).to eq([])
+      expect(edge.event_guards[:go]).to eq(%i[kind_ok?])
+    end
+
+    it "rejects a symbol record guard that wants metadata" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :greedy?
+
+        def greedy?(_record, _metadata) = true
+      end
+
+      expect { flow.finalize! }
+        .to raise_error(Statecraft::CompilationError, /record_guard :greedy\? must take exactly the record/)
+    end
+
+    it "rejects a callable record guard of arity 2" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        transition from: :a, to: :b, record_guard: ->(_record, _metadata) { true }
+      end
+
+      expect { flow.finalize! }
+        .to raise_error(Statecraft::CompilationError, /record_guard the callable must take exactly the record/)
+    end
+
+    it "freezes the record-layer collections with the rest of the edge" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :kind_ok?
+
+        def kind_ok?(_record) = true
+      end
+
+      edge = flow.compiled_graph.edges[%i[a b]]
+      expect(edge.edge_record_guards).to be_frozen
+      expect(edge.event_record_guards).to be_frozen
+      expect(edge.event_record_guards[:go]).to be_frozen
+    end
+  end
 end

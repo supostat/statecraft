@@ -135,6 +135,16 @@ one event, `from` is unique — an event is a partial function from state to
 edge, so `fire!` is structurally deterministic. Branching by outcome means
 two events (`pay` and `fail_payment`), not one event with two branches.
 
+A guard also declares its nature. `guard:` judges the input: it receives
+`(record, metadata)` and belongs to execution and prediction. `record_guard:`
+judges the record alone: its handler must take exactly one argument — the
+compiler refuses any other arity — so it physically cannot read the input.
+Execution runs both layers, record first; the split exists for the offering
+introspection below, which may ask the record layer before any input exists.
+A good `record_guard:` is a one-line delegation to a domain predicate on the
+model (`def customer_cancellable?(record) = record.customer_cancellable?`):
+the machine keeps the registry "event → predicate", the model keeps the fact.
+
 Calling `transition_to!` directly over an edge that carries event guards is
 refused — the guards would be silently skipped. The escape hatch is explicit:
 `transition_to!(:paid, bypass_events: true)` skips event guards (edge guards
@@ -208,6 +218,8 @@ order.can_fire?(:pay, metadata: { amount: 100 })  # would the guards pass right 
 order.may_pay?(metadata: { amount: 100 })          # alias, with helpers: true
 order.available_events(metadata: { amount: 100 })  # => [:pay]
 order.available_transitions(metadata: {})          # => [#<to: :cancelled, via: [:direct]>]
+order.offerable_events                             # => [:pay, :cancel] — graph × record layer
+order.refusals_for(:cancel)                        # => [#<event: :cancel, guard: :customer_cancellable?, layer: :event_record>]
 order.transitioned_to?(:paid)                      # strictly log-based
 OrderFlow.transitions_from(:pending)               # => [{ to: :paid, events: [:pay] }, ...]
 ```
@@ -222,10 +234,17 @@ list, and a state outside the graph owns no edges. Pair it with
 free of event guards and its edge guards pass. Every answer is a snapshot —
 CAS may still reject the transition a moment later.
 
-A guard that reads metadata makes `may_*?` depend on the metadata you pass.
-For a UI "is this button available" question, either do not hang input
-validation on a guard, or pass the same metadata to `may_*?` that you will
-collect for `fire!`.
+For a UI "is this button available" question, ask `offerable_events`: the
+graph filtered by the record layer only. An input-reading `guard:` never
+hides a button — hiding it would hide the form its input arrives through —
+while a `record_guard:` honestly strips an event this record is not offered.
+`refusals_for(:event)` returns the refusing record-layer guards as frozen
+structures (event, guard name, layer) and answers `[]` for an unknown event
+or a missing branch. It carries names, never words: human-readable reasons
+belong to the application's presentation layer, not to the machine.
+
+A guard that reads metadata makes `may_*?` depend on the metadata you pass —
+pass the same metadata to `may_*?` that you will collect for `fire!`.
 
 ## Metadata
 
@@ -397,29 +416,26 @@ class OrderFlow
   state :cancelled
 
   event :pay, from: :pending, to: :paid
-  event :refund, from: :paid, to: :refunded, guard: :refundable?
+  event :refund, from: :paid, to: :refunded, record_guard: :refundable?
 
   # One edge, the whole event layer: a guarded event, an unguarded privileged
   # event and the bypass path all share pending -> cancelled — the log
-  # records HOW, not only WHAT.
-  event :cancel, from: :pending, to: :cancelled, guard: :cancellable?
+  # records HOW, not only WHAT. The cancel guards split by nature: the
+  # record layer judges the order (and the offering may ask it), the input
+  # layer judges what the operator typed (only fire! and the panel see it).
+  event :cancel, from: :pending, to: :cancelled,
+        record_guard: :customer_cancellable?, guard: :reason_present?
   event :admin_override, from: :pending, to: :cancelled
 
   private
 
-  # Refundability is a property of the record, not of the metadata: money
-  # comes back only while the shipment has not sailed. The TOCTOU scene
-  # lives exactly in this gap.
-  def refundable?(record, _metadata)
-    shipment = record.shipment
-    shipment.nil? || %w[pending packed].include?(shipment[:state])
-  end
+  # The machine keeps the registry "event -> predicate" and delegates the
+  # domain facts to the record.
+  def refundable?(record) = record.refundable?
 
-  # Credit orders cancel only through the admin paths — the same click
-  # refuses differently for the two STI types on one screen.
-  def cancellable?(record, metadata)
-    return false if record.is_a?(CreditOrder)
+  def customer_cancellable?(record) = record.customer_cancellable?
 
+  def reason_present?(_record, metadata)
     metadata["reason"].to_s.strip.present?
   end
 end

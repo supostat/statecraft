@@ -221,4 +221,45 @@ RSpec.describe "guard and callback resolution" do
       expect(flow.new).not_to equal(flow.new)
     end
   end
+
+  describe "record guard resolution" do
+    it "resolves a private record guard like any other guard symbol" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :kind_ok?
+
+        private
+
+        def kind_ok?(_record) = true
+      end
+
+      expect { flow.finalize! }.not_to raise_error
+    end
+
+    it "rejects a missing record guard symbol through the same existence check" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :ghost_kind?
+      end
+
+      expect { flow.finalize! }.to raise_error(Statecraft::CompilationError, /:ghost_kind\? is not defined/)
+    end
+
+    it "holds the unary contract for a private record guard too" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :kind_ok?
+
+        private
+
+        def kind_ok?(_record, _metadata) = true
+      end
+
+      expect { flow.finalize! }
+        .to raise_error(Statecraft::CompilationError, /record_guard :kind_ok\? must take exactly the record/)
+    end
+  end
 end

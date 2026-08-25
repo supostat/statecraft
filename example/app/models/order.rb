@@ -13,4 +13,15 @@ class Order < ApplicationRecord
   def total_cents
     items.sum("quantity * unit_price_cents")
   end
+
+  # The domain facts the machine's record guards delegate to. Money comes
+  # back only while the shipment has not sailed — the TOCTOU scene lives in
+  # exactly this gap.
+  def refundable?
+    shipment.nil? || %w[pending packed].include?(shipment[:state])
+  end
+
+  def customer_cancellable?
+    true
+  end
 end

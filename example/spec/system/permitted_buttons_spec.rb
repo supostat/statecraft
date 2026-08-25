@@ -4,6 +4,7 @@ require "rails_helper"
 
 # catalog: 41-permissions-x-graph
 # catalog: 26-toctou-gap
+# catalog: 43-record-layer-offering
 
 RSpec.describe "permitted buttons", type: :system do
   it "one pending order, three roles, three different button sets" do
@@ -36,6 +37,28 @@ RSpec.describe "permitted buttons", type: :system do
     expect(page).to have_button("bypass cancel")
   end
 
+  it "a credit order offers cancel to no one: the record layer strips it before rights" do
+    credit = CreditOrder.create!(number: "SPEC-CREDIT-BTN", customer_name: "Spec",
+                                 user: User.find_by!(role: "user"))
+
+    # Uma owns it, yet the storefront cancel form is gone: the machine does
+    # not offer this type the event, whatever the role.
+    visit my_order_path(credit)
+    expect(page).to have_button("Pay")
+    expect(page).to have_no_button("Cancel the order")
+
+    # Ada holds every right there is — the offering still excludes cancel;
+    # her paths onto that edge are the privileged ones.
+    sign_in_as("Ada Admin (admin)")
+    visit admin_order_path(credit)
+    within(".transition-buttons", match: :first) do
+      expect(page).to have_button("pay")
+      expect(page).to have_button("admin_override")
+      expect(page).to have_no_button("cancel")
+    end
+    expect(page).to have_button("bypass cancel")
+  end
+
   it "TOCTOU survives the intersection: the snapshot ages between render and click" do
     sign_in_as("Ada Admin (admin)")
     order = Order.find_by!(number: "ORD-1004")
@@ -46,9 +69,10 @@ RSpec.describe "permitted buttons", type: :system do
     click_button "refund"
 
     expect(page).to have_text("Refused:")
-    # The button stays — the graph edge and the right still exist; what died
-    # is readiness, and the guard-aware panel says so.
-    expect(page).to have_button("refund")
+    # The re-render took a FRESH record-layer snapshot: the offering no
+    # longer includes refund and the panel agrees — the stale button lived
+    # exactly in the gap between the old render and the click.
+    expect(page).to have_no_button("refund")
     expect(page).to have_no_css(".available-panel li", text: "refunded")
   end
 end

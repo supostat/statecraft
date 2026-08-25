@@ -37,7 +37,7 @@
     <%= button_to "Pay", pay_my_order_path(@order), method: :post, class: "transition-button" %>
   <% end %>
 
-  <% if can?(:cancel, @order) %>
+  <% if can?(:cancel, @order) && @order.offerable_events.include?(:cancel) %>
   <%= form_with url: cancel_my_order_path(@order), method: :post, local: true do %>
     <fieldset>
       <legend>Changed your mind?</legend>

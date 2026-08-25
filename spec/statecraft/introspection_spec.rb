@@ -196,4 +196,95 @@ RSpec.describe "introspection" do
       expect { order.fire!(:pay, metadata: { a: 1 }) }.to raise_error(FrozenError)
     end
   end
+
+  describe "the record-layer offering" do
+    def define_offering_order
+      stub_const("OfferFlow", Class.new do
+        include Statecraft::Machine
+
+        state :pending, initial: true
+        state :paid
+        state :cancelled
+        state :archived
+
+        event :pay,
+              from: :pending, to: :paid,
+              record_guard: :payable_kind?,
+              guard: ->(_record, metadata) { metadata["amount"].to_i.positive? }
+        event :cancel, from: :pending, to: :cancelled, record_guard: :regular_kind?
+        transition from: :pending, to: :archived, record_guard: :never_open?
+        event :archive, from: :pending, to: :archived
+
+        def payable_kind?(record) = record.status != "blocked"
+        def regular_kind?(record) = record.status != "credit"
+        def never_open?(_record) = false
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      Order.state_machine(OfferFlow, log: OrderTransition)
+    end
+
+    before { define_offering_order }
+
+    describe "offerable_events" do
+      it "offers events whose record layer passes, ignoring input guards" do
+        order = Order.create!
+        expect(order.offerable_events).to eq(%i[pay cancel])
+      end
+
+      it "drops an event whose record guard refuses this record" do
+        credit = Order.create!(status: "credit")
+        expect(credit.offerable_events).to eq([:pay])
+      end
+
+      it "consults the edge record layer for events riding that edge" do
+        order = Order.create!
+        expect(order.offerable_events).not_to include(:archive)
+      end
+
+      it "answers [] for a state outside the graph" do
+        order = Order.create!
+        order.update_column(:state, "limbo")
+        expect(order.reload.offerable_events).to eq([])
+      end
+
+      it "is a snapshot of the record as it stands right now" do
+        order = Order.create!
+        order.status = "credit"
+        expect(order.offerable_events).to eq([:pay])
+        order.status = "draft"
+        expect(order.offerable_events).to eq(%i[pay cancel])
+      end
+    end
+
+    describe "refusals_for" do
+      it "names the refusing event record guard" do
+        credit = Order.create!(status: "credit")
+        refusals = credit.refusals_for(:cancel)
+
+        expect(refusals.length).to eq(1)
+        expect(refusals.first.event).to eq(:cancel)
+        expect(refusals.first.guard).to eq(:regular_kind?)
+        expect(refusals.first.layer).to eq(:event_record)
+        expect(refusals.first).to be_frozen
+      end
+
+      it "names the refusing edge record guard with its own layer" do
+        order = Order.create!
+        refusals = order.refusals_for(:archive)
+
+        expect(refusals.map(&:guard)).to eq([:never_open?])
+        expect(refusals.map(&:layer)).to eq([:edge_record])
+      end
+
+      it "answers [] when the record layer passes" do
+        expect(Order.create!.refusals_for(:cancel)).to eq([])
+      end
+
+      it "answers [] for an unknown event and for an event without a branch" do
+        order = Order.create!(state: "paid")
+        expect(order.refusals_for(:ghost)).to eq([])
+        expect(order.refusals_for(:cancel)).to eq([])
+      end
+    end
+  end
 end
