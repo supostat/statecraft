@@ -307,7 +307,7 @@
        History is an append-only log with write-once metadata.
        Built for ActiveRecord; Rails is optional.</p>
     <ul class="badges">
-      <li>MIT</li><li>gem v0.2.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
+      <li>MIT</li><li>gem v0.3.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
     </ul>
     <p class="cta">
       <a class="btn btn-primary" href="#quick-start">Get started</a>
@@ -432,7 +432,13 @@ Order.paid.count                          <span class="tok-c"># plain WHERE, zer
 <span class="tok-c">#     metadata: { <span class="tok-str">"amount"</span> =&gt; 100 },</span>
 <span class="tok-c">#     created_at: …&gt;</span>
 
-order.transitioned_to?(<span class="tok-s">:paid</span>)  <span class="tok-c"># =&gt; true, strictly log-based</span></code></pre>
+order.transitioned_to?(<span class="tok-s">:paid</span>)  <span class="tok-c"># =&gt; true, strictly log-based</span>
+
+puts OrderFlow.to_mermaid       <span class="tok-c"># the shape as a Mermaid diagram</span>
+<span class="tok-c">stateDiagram-v2
+  [*] --&gt; pending
+  pending --&gt; paid : pay
+  pending --&gt; cancelled : cancel</span></code></pre>
     </div>
   </div>
 </section>
@@ -548,7 +554,8 @@ order.transitioned_to?(<span class="tok-s">:paid</span>)  <span class="tok-c"># 
     <div class="features">
       <div class="feature"><span class="tag">introspection</span><h3>Honest availability answers</h3>
         <p><code>available_transitions</code> tells you where <em>and how</em>:
-           via events whose guards pass, plus <code>:direct</code> for unguarded edges.</p></div>
+           via events whose guards pass, plus <code>:direct</code> for unguarded edges;
+           <code>to_mermaid</code> draws the shape as a Mermaid diagram.</p></div>
       <div class="feature"><span class="tag">offering</span><h3>Buttons the machine offers</h3>
         <p><code>offerable_events</code> is the graph filtered by the record layer — an input
            guard never hides the form its input arrives through — and
