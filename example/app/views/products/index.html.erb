@@ -1,5 +1,8 @@
 <h1>Store</h1>
 
+<% if @products.empty? %>
+  <p class="empty-state">Nothing on the shelves yet.</p>
+<% else %>
 <div class="product-grid">
   <% @products.each do |product| %>
     <div class="product-card">
@@ -10,3 +13,4 @@
     </div>
   <% end %>
 </div>
+<% end %>

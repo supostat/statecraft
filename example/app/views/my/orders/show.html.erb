@@ -1,36 +1,36 @@
-<h1>Order <%= @order.number %></h1>
-
-<p>
-  Status: <%= render "status", order: @order %>
-  <% if @order.is_a?(CreditOrder) %>
-    <span class="muted">· paid on credit</span>
+<div class="order-head">
+  <div class="title-row">
+    <h1>Order <%= @order.number %></h1>
+    <%= render "status", order: @order %>
+  </div>
+  <% if @order.is_a?(CreditOrder) || @order.express? %>
+    <p class="modifiers">
+      <% if @order.is_a?(CreditOrder) %>· paid on credit<% end %>
+      <% if @order.express? %>· express delivery<% end %>
+    </p>
   <% end %>
-  <% if @order.express? %>
-    <span class="muted">· express delivery</span>
+  <% if @order.shipment %>
+    <p class="delivery-line">Delivery: <strong><%= shipping_status(@order.shipment) %></strong></p>
   <% end %>
-</p>
-
-<% if @order.shipment %>
-  <p>Delivery: <strong><%= shipping_status(@order.shipment) %></strong></p>
-<% end %>
+</div>
 
 <table>
   <thead>
-    <tr><th>item</th><th>qty</th><th>price</th><th>line</th></tr>
+    <tr><th>item</th><th class="num">qty</th><th class="num">price</th><th class="num">line</th></tr>
   </thead>
   <tbody>
     <% @order.items.includes(:product).each do |item| %>
       <tr>
         <td><%= item.product.name %></td>
-        <td><%= item.quantity %></td>
-        <td><%= price(item.unit_price_cents) %></td>
-        <td><%= price(item.line_total_cents) %></td>
+        <td class="num"><%= item.quantity %></td>
+        <td class="num"><%= price(item.unit_price_cents) %></td>
+        <td class="num"><%= price(item.line_total_cents) %></td>
       </tr>
     <% end %>
   </tbody>
 </table>
 
-<p><strong>Total: <%= price(@order.total_cents) %></strong></p>
+<p class="total-line"><strong>Total: <%= price(@order.total_cents) %></strong></p>
 
 <% if @order[:state] == "pending" %>
   <% if can?(:pay, @order) && @order.payment.nil? %>

@@ -5,25 +5,25 @@
 <% else %>
   <table>
     <thead>
-      <tr><th>item</th><th>qty</th><th>price</th><th>line</th><th></th></tr>
+      <tr><th>item</th><th class="num">qty</th><th class="num">price</th><th class="num">line</th><th></th></tr>
     </thead>
     <tbody>
       <% @lines.each do |product, quantity| %>
         <tr>
           <td><%= product.name %></td>
-          <td><%= quantity %></td>
-          <td><%= price(product.price_cents) %></td>
-          <td><%= price(product.price_cents * quantity) %></td>
+          <td class="num"><%= quantity %></td>
+          <td class="num"><%= price(product.price_cents) %></td>
+          <td class="num"><%= price(product.price_cents * quantity) %></td>
           <td>
             <%= button_to "remove", remove_from_cart_path(product_id: product.id),
-                          method: :post, class: "transition-button" %>
+                          method: :post, class: "preview-button" %>
           </td>
         </tr>
       <% end %>
     </tbody>
   </table>
 
-  <p><strong>Total: <%= price(@total_cents) %></strong></p>
+  <p class="total-line"><strong>Total: <%= price(@total_cents) %></strong></p>
 
-  <p><%= link_to "Proceed to checkout", checkout_path %></p>
+  <p><%= link_to "Proceed to checkout", checkout_path, class: "transition-button" %></p>
 <% end %>

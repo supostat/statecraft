@@ -5,14 +5,14 @@
 <% else %>
   <table>
     <thead>
-      <tr><th>order</th><th>status</th><th>total</th></tr>
+      <tr><th>order</th><th>status</th><th class="num">total</th></tr>
     </thead>
     <tbody>
       <% @orders.each do |order| %>
         <tr>
           <td><%= link_to order.number, my_order_path(order) %></td>
           <td><%= render "status", order: order %></td>
-          <td><%= price(order.total_cents) %></td>
+          <td class="num"><%= price(order.total_cents) %></td>
         </tr>
       <% end %>
     </tbody>

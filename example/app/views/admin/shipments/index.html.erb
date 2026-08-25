@@ -1,5 +1,8 @@
 <h1>Admin · Shipments</h1>
 
+<% if @shipments.empty? %>
+  <p class="empty-state">No shipments yet.</p>
+<% else %>
 <table>
   <thead>
     <tr><th>number</th><th>order</th><th>kind</th><th>state</th></tr>
@@ -15,3 +18,4 @@
     <% end %>
   </tbody>
 </table>
+<% end %>

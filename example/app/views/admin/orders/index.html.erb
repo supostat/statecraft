@@ -1,15 +1,19 @@
 <h1>Admin · Orders</h1>
 
 <p class="filters">
-  <%= link_to "all", admin_orders_path %>
+  <%= link_to "all", admin_orders_path, class: ("active" if @active_state.empty?) %>
   <% OrderFlow.states.each do |state| %>
-    <%= link_to state, admin_orders_path(state: state) %>
+    <%= link_to state, admin_orders_path(state: state),
+                class: ("active" if @active_state == state.to_s) %>
   <% end %>
 </p>
 
+<% if @orders.empty? %>
+  <p class="empty-state">No orders in this state.</p>
+<% else %>
 <table>
   <thead>
-    <tr><th>number</th><th>customer</th><th>kind</th><th>state</th><th>total</th></tr>
+    <tr><th>number</th><th>customer</th><th>kind</th><th>state</th><th class="num">total</th></tr>
   </thead>
   <tbody>
     <% @orders.each do |order| %>
@@ -18,8 +22,9 @@
         <td><%= order.customer_name %></td>
         <td><%= order.is_a?(CreditOrder) ? "credit" : "regular" %></td>
         <td><code><%= order[:state] %></code></td>
-        <td><%= price(order.total_cents) %></td>
+        <td class="num"><%= price(order.total_cents) %></td>
       </tr>
     <% end %>
   </tbody>
 </table>
+<% end %>

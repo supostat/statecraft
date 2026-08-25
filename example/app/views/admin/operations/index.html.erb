@@ -6,16 +6,20 @@
   transition lands first.
 </p>
 
+<% entries = @entries.to_a %>
+<% if entries.empty? %>
+  <p class="empty-state">The log is quiet so far.</p>
+<% else %>
 <table class="operations">
   <thead>
     <tr><th>#</th><th>record</th><th>transition</th><th>via</th><th>outcome</th></tr>
   </thead>
   <tbody>
-    <% @entries.each do |entry| %>
-      <tr>
-        <td class="muted"><%= entry.id %></td>
+    <% entries.each_with_index do |entry, index| %>
+      <tr class="<%= "pair" if cascade_pair?(entries, index) %>">
+        <td class="id"><%= entry.id %></td>
         <td><%= entry.record_class %> #<%= entry.record_id %></td>
-        <td><code><%= entry.from_state %></code> → <code><%= entry.to_state %></code></td>
+        <td class="transition"><code><%= entry.from_state %></code> <span class="arrow">→</span> <code><%= entry.to_state %></code></td>
         <td>
           <% if entry.event_name %>
             <%= entry.event_name %>
@@ -34,3 +38,4 @@
     <% end %>
   </tbody>
 </table>
+<% end %>

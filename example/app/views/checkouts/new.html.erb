@@ -5,12 +5,12 @@
     <% @lines.each do |product, quantity| %>
       <tr>
         <td><%= product.name %></td>
-        <td><%= quantity %> × <%= price(product.price_cents) %></td>
+        <td class="num"><%= quantity %> × <%= price(product.price_cents) %></td>
       </tr>
     <% end %>
     <tr>
       <td><strong>Total</strong></td>
-      <td><strong><%= price(@total_cents) %></strong></td>
+      <td class="num"><strong><%= price(@total_cents) %></strong></td>
     </tr>
   </tbody>
 </table>

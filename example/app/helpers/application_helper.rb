@@ -36,4 +36,22 @@ module ApplicationHelper
   def price(cents)
     format("$%.2f", cents / 100.0)
   end
+
+  # The zone drives density and the header band; the storefront and the
+  # operator desk share tokens and differ by this one class.
+  def operator_zone?
+    request.path.start_with?("/admin")
+  end
+
+  # Consecutive feed rows of one record are a cascade's footprint; both rows
+  # of the pair share a tint so the inverted order reads as one story.
+  def cascade_pair?(entries, index)
+    neighbors = []
+    neighbors << entries[index - 1] if index.positive?
+    neighbors << entries[index + 1] if index + 1 < entries.size
+    entry = entries[index]
+    neighbors.any? do |neighbor|
+      neighbor.record_class == entry.record_class && neighbor.record_id == entry.record_id
+    end
+  end
 end

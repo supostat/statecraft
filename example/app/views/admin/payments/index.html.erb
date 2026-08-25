@@ -1,17 +1,21 @@
 <h1>Admin · Payments</h1>
 
+<% if @payments.empty? %>
+  <p class="empty-state">No payments yet.</p>
+<% else %>
 <table>
   <thead>
-    <tr><th>number</th><th>order</th><th>amount</th><th>state</th></tr>
+    <tr><th>number</th><th>order</th><th class="num">amount</th><th>state</th></tr>
   </thead>
   <tbody>
     <% @payments.each do |payment| %>
       <tr>
         <td><%= link_to payment.number, admin_payment_path(payment) %></td>
         <td><%= link_to payment.order.number, admin_order_path(payment.order) %></td>
-        <td><%= price(payment.amount_cents) %></td>
+        <td class="num"><%= price(payment.amount_cents) %></td>
         <td><code><%= payment[:state] %></code></td>
       </tr>
     <% end %>
   </tbody>
 </table>
+<% end %>

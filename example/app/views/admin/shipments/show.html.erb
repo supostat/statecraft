@@ -2,11 +2,12 @@
   <span class="muted">(<%= @shipment.express? ? "express" : "regular" %>)</span>
 </h1>
 
-<p>
+<p class="meta-line">
   State: <code><%= @shipment[:state] %></code>
   · <%= link_to "order #{@shipment.order.number}", admin_order_path(@shipment.order) %>
 </p>
 
+<div class="work-card">
 <%= form_with url: pack_admin_shipment_path(@shipment), method: :post, local: true do %>
   <fieldset>
     <legend>Metadata for the next action</legend>
@@ -20,5 +21,6 @@
              record: @shipment,
              fire_url: ->(event_name) { public_send("#{event_name}_admin_shipment_path", @shipment) } %>
 <% end %>
+</div>
 
 <%= render "shared/history", record: @shipment %>

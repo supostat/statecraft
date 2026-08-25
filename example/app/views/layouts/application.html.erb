@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/application.css">
     <script src="/app.js" defer></script>
   </head>
-  <body>
+  <body class="<%= operator_zone? ? "zone-operator" : "zone-storefront" %>">
     <header class="site-header">
       <nav>
         <a class="brand" href="/">statecraft store</a>
@@ -36,6 +36,10 @@
         <% end %>
       </nav>
     </header>
+
+    <% if operator_zone? %>
+      <div class="zone-band">Operator zone</div>
+    <% end %>
 
     <% flash.each do |kind, message| %>
       <div class="flash flash-<%= kind %>"><%= message %></div>

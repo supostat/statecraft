@@ -1,11 +1,12 @@
 <h1>Admin · Payment <%= @payment.number %></h1>
 
-<p>
+<p class="meta-line">
   State: <code><%= @payment[:state] %></code>
   · amount: <%= price(@payment.amount_cents) %>
   · <%= link_to "order #{@payment.order.number}", admin_order_path(@payment.order) %>
 </p>
 
+<div class="work-card">
 <%= form_with url: save_and_capture_admin_payment_path(@payment), method: :post, local: true do %>
   <fieldset>
     <legend>Edit and act</legend>
@@ -21,5 +22,6 @@
 
   <button type="submit" class="preview-button">save and capture</button>
 <% end %>
+</div>
 
 <%= render "shared/history", record: @payment %>
