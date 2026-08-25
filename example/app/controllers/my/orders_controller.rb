@@ -12,6 +12,14 @@ module My
                   alert: "This order just changed — here is its current state."
     end
 
+    # The scoped query makes other people's orders invisible, and the top-bar
+    # switcher returns to the page it was pressed on — so landing on a foreign
+    # order as the new person is a normal walk, not an error page.
+    rescue_from ActiveRecord::RecordNotFound do
+      redirect_to my_orders_path,
+                  alert: "That order belongs to a different account — here are your orders."
+    end
+
     def index
       @orders = MyOrdersQuery.call(user: current_user)
     end

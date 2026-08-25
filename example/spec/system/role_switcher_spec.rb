@@ -28,4 +28,16 @@ RSpec.describe "the role switcher", type: :system do
     visit admin_orders_path
     expect(page).to have_current_path(products_path)
   end
+
+  it "switching identity on someone else's order lands on your list, not an error page" do
+    visit my_order_path(Order.find_by!(number: "ORD-1001"))
+
+    within(".user-switcher") do
+      select "Ada Admin (admin)", from: "user_id"
+      click_button "Switch"
+    end
+
+    expect(page).to have_current_path(my_orders_path)
+    expect(page).to have_text("That order belongs to a different account")
+  end
 end
