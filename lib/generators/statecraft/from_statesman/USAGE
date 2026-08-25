@@ -1,0 +1,30 @@
+Description:
+    Migrates a model off statesman: converts its transitions table into the
+    statecraft log IN PLACE (the names already match the gem's convention),
+    gives the model its state column with a backfill from the last
+    transition, generates a machine skeleton from the statesman class's
+    reflection, and mounts the machine.
+
+    The statesman machine is read through reflection: states, the initial
+    state and the transition graph are copied; events and guard bodies
+    cannot be — statesman has no events (name them yourself in the skeleton)
+    and guard bodies are anonymous blocks (each becomes a TODO comment with
+    its original source location).
+
+    The second argument names the statesman machine class; without it the
+    <Model>StateMachine convention is assumed. Statesman graphs are not
+    inherited — point at the class that declares the DSL.
+
+Example:
+    bin/rails generate statecraft:from_statesman Order
+
+    Creates (when missing) and edits:
+        app/state_machines/application_machine.rb
+        app/state_machines/order_flow.rb        (skeleton: graph + TODOs)
+        app/models/order.rb                     (state_machine mounting line)
+        db/migrate/XXX_convert_order_transitions_to_statecraft.rb
+
+    The migration header lists two pre-flight checks on live data (id order
+    vs sort_key order; text metadata holding valid JSON) — read it before
+    running. After migrating, follow the printed cleanup list: drop the
+    statesman includes, the configure initializer, and name your events.

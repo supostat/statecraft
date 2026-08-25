@@ -1,0 +1,26 @@
+# frozen_string_literal: true
+
+# Skeleton generated from <%= statesman_class_name %>: the graph is copied,
+# the semantics are yours to port.
+#
+# - statesman has no events, so every edge below is a bare transition. Where
+#   an edge is really a command in your domain, name it:
+#     event :pay, from: :pending, to: :paid
+# - statesman guard bodies cannot be extracted; each is listed as a TODO with
+#   its original location. Port a guard that judges the record alone as
+#   record_guard: (arity 1), one that reads the input as guard:.
+class <%= class_name %>Flow < ApplicationMachine
+<% states.each do |state_name| -%>
+  state :<%= state_name %><%= state_name == initial_state ? ", initial: true" : "" %>
+<% end -%>
+
+<% edges.each do |from, to| -%>
+  transition from: :<%= from %>, to: :<%= to %>
+<% end -%>
+<% unless guard_notes.empty? -%>
+
+<% guard_notes.each do |note| -%>
+  # TODO(guard): <%= note %>
+<% end -%>
+<% end -%>
+end

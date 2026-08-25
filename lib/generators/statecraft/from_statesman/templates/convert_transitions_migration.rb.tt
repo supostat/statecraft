@@ -1,0 +1,142 @@
+# frozen_string_literal: true
+
+# Converts the statesman transitions table <%= log_table_name %> into the
+# statecraft log IN PLACE and gives <%= table_name %> its state column.
+#
+# BEFORE RUNNING — two checks on live data, both cheap:
+#
+# 1. statecraft reads history ordered by id, statesman ordered by sort_key.
+#    They almost always agree; prove it for your data (must return 0 rows):
+#
+#      SELECT t.<%= foreign_key_column %> FROM <%= log_table_name %> t
+#      JOIN <%= log_table_name %> later ON later.<%= foreign_key_column %> = t.<%= foreign_key_column %>
+#        AND later.sort_key > t.sort_key AND later.id < t.id LIMIT 1;
+#
+# 2. If your metadata column is text, every row must hold valid JSON (rows
+#    written by raw SQL may not) — the jsonb cast below dies on the first
+#    invalid one.
+class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  def up
+    convert_parent_table
+    convert_transitions_table
+    convert_metadata_column
+    rebuild_indexes_and_foreign_key
+    drop_statesman_columns
+  end
+
+  def down
+    raise ActiveRecord::IrreversibleMigration
+  end
+
+  private
+
+  def convert_parent_table
+    add_column :<%= table_name %>, :state, :string
+
+    # The current state is the to_state of the LAST transition by sort_key —
+    # deliberately not most_recent, which statesman itself ships a repair
+    # rake task for; rows without transitions are in the initial state.
+    execute <<~SQL
+      UPDATE <%= table_name %> SET state = COALESCE(
+        (SELECT t.to_state FROM <%= log_table_name %> t
+         WHERE t.<%= foreign_key_column %> = <%= table_name %>.id
+         ORDER BY t.sort_key DESC LIMIT 1),
+        '<%= initial_state %>'
+      )
+    SQL
+
+    change_column_default :<%= table_name %>, :state, "<%= initial_state %>"
+    change_column_null :<%= table_name %>, :state, false
+
+    return unless connection.supports_check_constraints?
+
+    # add new states here when the machine grows
+    if postgresql?
+      add_check_constraint :<%= table_name %>, state_check_expression,
+                           name: "<%= table_name %>_state_check", validate: false
+      validate_check_constraint :<%= table_name %>, name: "<%= table_name %>_state_check"
+    else
+      add_check_constraint :<%= table_name %>, state_check_expression,
+                           name: "<%= table_name %>_state_check"
+    end
+  end
+
+  def convert_transitions_table
+    add_column :<%= log_table_name %>, :from_state, :string
+    add_column :<%= log_table_name %>, :event, :string
+
+    # from_state is the previous to_state along the sort_key chain; the
+    # chain's first hop starts from the initial state. Runs while sort_key
+    # is still alive — order matters.
+    execute <<~SQL
+      UPDATE <%= log_table_name %> SET from_state = COALESCE(prev.prev_state, '<%= initial_state %>')
+      FROM (SELECT id, LAG(to_state) OVER (
+              PARTITION BY <%= foreign_key_column %> ORDER BY sort_key
+            ) AS prev_state
+            FROM <%= log_table_name %>) prev
+      WHERE prev.id = <%= log_table_name %>.id
+    SQL
+
+    change_column_null :<%= log_table_name %>, :from_state, false
+    # event stays NULL for the imported history: statesman had no events, and
+    # statecraft reads NULL as a direct transition.
+  end
+
+  # Statesman's default schema serializes metadata into a text column; the
+  # statecraft pipeline wants native json(b). Converting the type and
+  # removing `serialize :metadata` from the transition model are ONE move —
+  # neither library works in the half-converted state.
+  def convert_metadata_column
+    metadata_type = connection.columns(:<%= log_table_name %>).find { |column| column.name == "metadata" }&.sql_type.to_s
+    return unless metadata_type.match?(/text|char/i)
+
+    if postgresql?
+      change_column_default :<%= log_table_name %>, :metadata, nil
+      execute "ALTER TABLE <%= log_table_name %> ALTER COLUMN metadata TYPE jsonb USING metadata::jsonb"
+      execute "UPDATE <%= log_table_name %> SET metadata = '{}'::jsonb WHERE metadata IS NULL"
+      change_column_default :<%= log_table_name %>, :metadata, {}
+      change_column_null :<%= log_table_name %>, :metadata, false
+    else
+      # SQLite types dynamically and serialize already stored JSON text —
+      # the change is declarative (a table rebuild under the hood).
+      change_column :<%= log_table_name %>, :metadata, :json, null: false, default: {}
+    end
+  end
+
+  def rebuild_indexes_and_foreign_key
+    # If your foreign key column is NOT named <%= foreign_key_column %>
+    # (check the has_many on your model), rename it first — statecraft
+    # derives the name from the model class and offers no override:
+    #   rename_column :<%= log_table_name %>, :your_column, :<%= foreign_key_column %>
+
+    remove_index :<%= log_table_name %>, column: %i[<%= foreign_key_column %> sort_key], if_exists: true
+    remove_index :<%= log_table_name %>, column: %i[<%= foreign_key_column %> most_recent], if_exists: true
+    add_index :<%= log_table_name %>, %i[<%= foreign_key_column %> id]
+
+    # An audit without its subject is not an audit: the statecraft contract
+    # is ON DELETE CASCADE (statesman's default foreign key, when present,
+    # carries no action).
+    if foreign_key_exists?(:<%= log_table_name %>, :<%= table_name %>)
+      remove_foreign_key :<%= log_table_name %>, :<%= table_name %>
+    end
+    add_foreign_key :<%= log_table_name %>, :<%= table_name %>,
+                    column: :<%= foreign_key_column %>, on_delete: :cascade
+  end
+
+  # sort_key and most_recent are NOT NULL without defaults — the first
+  # statecraft insert would die on them; updated_at is merely absent from
+  # the statecraft schema.
+  def drop_statesman_columns
+    remove_column :<%= log_table_name %>, :sort_key
+    remove_column :<%= log_table_name %>, :most_recent if column_exists?(:<%= log_table_name %>, :most_recent)
+    remove_column :<%= log_table_name %>, :updated_at if column_exists?(:<%= log_table_name %>, :updated_at)
+  end
+
+  def state_check_expression
+    "state IN ('<%= initial_state %>'<% (states - [initial_state]).each do |state_name| %>, '<%= state_name %>'<% end %>)"
+  end
+
+  def postgresql?
+    connection.adapter_name.match?(/postg/i)
+  end
+end

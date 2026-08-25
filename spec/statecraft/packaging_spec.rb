@@ -18,8 +18,9 @@ RSpec.describe "gem packaging" do
     expect(specification.files).to include(*Dir["lib/**/*.rb"])
   end
 
-  it "ships the generator USAGE" do
-    expect(specification.files).to include("lib/generators/statecraft/machine/USAGE")
+  it "ships every generator USAGE" do
+    expect(specification.files).to include("lib/generators/statecraft/machine/USAGE",
+                                           "lib/generators/statecraft/from_statesman/USAGE")
   end
 
   it "ships the license and the readme" do
