@@ -12,6 +12,7 @@ fail() { echo "build.sh: $1" >&2; exit 1; }
 rm -rf dist
 mkdir dist
 cp site/index.html dist/index.html
+cp site/compare.html dist/compare.html
 cp site/tokens.css dist/tokens.css
 cp site/og-image.png dist/og-image.png
 
@@ -31,4 +32,13 @@ for required in og:title og:description og:image twitter:card rel=\"canonical\" 
   fi
 done
 
-echo "build.sh: dist/ ready (index.html + tokens.css + og-image.png)"
+# The compare page ships with the landing: it must name its subject and
+# stay on the shared tokens, and the landing must link to it.
+for required in statesman aasm tokens.css rel=\"canonical\"; do
+  if ! grep -q "$required" dist/compare.html; then
+    fail "compare page marker missing: $required"
+  fi
+done
+grep -q "compare.html" dist/index.html || fail "landing lost its link to compare.html"
+
+echo "build.sh: dist/ ready (index.html + compare.html + tokens.css + og-image.png)"

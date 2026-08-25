@@ -649,6 +649,8 @@ AR_VERSION=7.2 RUBY_VERSION=3.3 docker compose run --rm test-postgres
 ## Links
 
 - Landing page: <https://supostat.github.io/statecraft/>
+- Benchmarks vs statesman/aasm: <https://supostat.github.io/statecraft/compare.html>
+  (reproducible scripts in [`benchmark/`](benchmark/))
 - RubyGems: <https://rubygems.org/gems/statecraft>
 - Issues: <https://github.com/supostat/statecraft/issues>
 
