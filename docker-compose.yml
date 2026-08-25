@@ -44,6 +44,19 @@ services:
       db:
         condition: service_healthy
 
+  # The benchmark harness (benchmark/): smoke mode by default — the phase
+  # gate; a full run overrides the command, see benchmark/README.md.
+  bench:
+    extends: test
+    working_dir: /gem/benchmark
+    environment:
+      DATABASE_URL: postgres://statecraft:statecraft@db:5432/statecraft_test
+      BUNDLE_PATH: /bundle/bench-${RUBY_VERSION:-3.4}
+    command: bash -c "bundle install && bundle exec ruby read_state.rb --smoke && bundle exec ruby concurrent_write.rb --smoke && bundle exec ruby single_transition.rb --smoke"
+    depends_on:
+      db:
+        condition: service_healthy
+
   # The example app's suite: the same PostgreSQL is reused, and db:prepare
   # creates both of its databases from database.yml.
   example:

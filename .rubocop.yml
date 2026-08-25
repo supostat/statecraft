@@ -4,6 +4,7 @@ AllCops:
   SuggestExtensions: false
   Exclude:
     - "example/**/*"
+    - "benchmark/**/*"
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
