@@ -495,6 +495,7 @@ fieldset input[type="number"] {
 }
 
 .available-panel h3,
+.refused-panel h3,
 .history h3 {
   margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
@@ -515,6 +516,20 @@ fieldset input[type="number"] {
   margin: var(--space-4) 0;
 }
 
+/* The record layer's refusals: quiet mechanics, not an alarm — the event
+   is absent by a domain fact, and the panel names the guard that said so. */
+.refused-panel {
+  background: var(--card);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+.refused-panel ul { margin: 0; padding-left: var(--space-4); }
+.refused-panel li { margin: var(--space-1) 0; }
+
 .history table { margin: 0; border: none; box-shadow: none; }
 
 /* The operator desk: work on the left, reading on the right. */
@@ -531,6 +546,7 @@ fieldset input[type="number"] {
 }
 
 .desk .reading .available-panel,
+.desk .reading .refused-panel,
 .desk .reading .history { margin: 0 0 var(--space-4); }
 
 .work-card {

@@ -48,5 +48,9 @@
       <button type="submit" class="preview-button">Cancel the order</button>
     </fieldset>
   <% end %>
+  <% elsif can?(:cancel, @order) %>
+    <%# The right exists, the machine does not offer it to this type: the
+        storefront says it in human words instead of showing a dead form. %>
+    <p class="muted">Credit orders are cancelled by support only.</p>
   <% end %>
 <% end %>

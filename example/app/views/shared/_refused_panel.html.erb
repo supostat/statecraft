@@ -1,0 +1,19 @@
+<%# The record layer's "why not": events the graph and the role allow while
+    THIS record is not offered them — each with the refusing guard's name.
+    Machine words on purpose: this is the operator zone. Locals: record. %>
+<% refused = refused_actions(record) %>
+<% if refused.any? %>
+  <div class="refused-panel">
+    <h3>Not offered to this record</h3>
+    <ul>
+      <% refused.each do |event_name, refusals| %>
+        <li>
+          <code><%= event_name %></code> — refused by
+          <% refusals.each do |refusal| %>
+            <code><%= refusal.guard %></code>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>

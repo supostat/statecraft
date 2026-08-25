@@ -56,3 +56,4 @@
 - 41. permissions-x-graph — three roles see three button sets over one record · scene
 - 42. role-switcher — picking a person in the top bar is the whole login · scene
 - 43. record-layer-offering — a credit order offers cancel to no one, whatever the role · scene
+- 44. not-offered-panel — the desk names the refusing record guard; an empty work form simply leaves · scene

@@ -12,6 +12,19 @@ module ApplicationHelper
     record.offerable_events.select { |event| can?(event, record) }
   end
 
+  # The mirror of permitted_actions: events the graph and the role allow
+  # while the record layer refuses — paired with the refusing guards, so
+  # the desk can say WHY a button is absent. Names only: the words belong
+  # to the view.
+  def refused_actions(record)
+    machine = record.class.statecraft_mounting.machine_class
+    offered = record.offerable_events
+    machine.transitions_from(record[:state])
+           .flat_map { |edge| edge[:events] }
+           .select { |event| can?(event, record) && !offered.include?(event) }
+           .map { |event| [event, record.refusals_for(event)] }
+  end
+
   # Bypass is not an event, so it never appears in via: the button shows
   # when the role owns the bypass right and the graph has a cancellable
   # edge from here.
