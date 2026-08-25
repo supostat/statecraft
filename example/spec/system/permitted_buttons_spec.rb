@@ -27,7 +27,8 @@ RSpec.describe "permitted buttons", type: :system do
     end
     expect(page).to have_no_button("bypass cancel")
 
-    # Ada owns the whole surface, bypass included.
+    # Ada owns the whole surface, bypass included — and nothing is refused
+    # to a regular order, so the refusal panel stays away.
     sign_in_as("Ada Admin (admin)")
     visit admin_order_path(order)
     within(".transition-buttons", match: :first) do
@@ -36,6 +37,7 @@ RSpec.describe "permitted buttons", type: :system do
       expect(page).to have_button("admin_override")
     end
     expect(page).to have_button("bypass cancel")
+    expect(page).to have_no_css(".refused-panel")
   end
 
   it "a credit order offers cancel to no one: the record layer strips it before rights" do

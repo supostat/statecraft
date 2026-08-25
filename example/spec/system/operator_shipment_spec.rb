@@ -55,4 +55,14 @@ RSpec.describe "the operator shipment desk", type: :system do
     click_button "deliver"
     expect(page).to have_text("deliver fired: the shipment is now delivered")
   end
+it "shows the calm empty desk and the quiet feed" do
+  ShipmentTransition.delete_all
+  Shipment.delete_all
+  visit admin_shipments_path
+  expect(page).to have_text("No shipments yet.")
+
+  OperationEntry.delete_all
+  visit admin_operations_path
+  expect(page).to have_text("The log is quiet so far.")
+end
 end

@@ -11,10 +11,15 @@ class CheckoutsController < ApplicationController
   def create
     redirect_to products_path, alert: "Your cart is empty." and return if cart.empty?
 
+    # params.require lets an empty string through (it only catches a missing
+    # key), so the storefront checks the value itself and answers humanly.
+    customer_name = params[:customer_name].to_s.strip
+    redirect_to checkout_path, alert: "Please tell us your name." and return if customer_name.empty?
+
     order = PlaceOrder.call(
       user: current_user,
       cart: cart,
-      customer_name: params.require(:customer_name),
+      customer_name: customer_name,
       express: params[:express] == "1",
       credit: params[:credit] == "1"
     )

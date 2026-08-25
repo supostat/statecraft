@@ -38,6 +38,23 @@ RSpec.describe "the storefront", type: :system do
     expect(page).to have_text("Payment pending confirmation")
   end
 
+  it "the cart counts a repeated add, removes a line, and an empty cart blocks checkout" do
+    visit products_path
+    within(".product-card", text: "Ceramic vase") { click_button "Add to cart" }
+    within(".product-card", text: "Ceramic vase") { click_button "Add to cart" }
+
+    visit cart_path
+    expect(page).to have_css("td.num", text: "2")
+    expect(page).to have_text("Total: $128.00")
+
+    click_button "remove"
+    expect(page).to have_text("Nothing here yet")
+
+    visit checkout_path
+    expect(page).to have_current_path(products_path)
+    expect(page).to have_text("Your cart is empty.")
+  end
+
   it "cancels with a reason in plain words, and refuses in plain words without one" do
     visit products_path
     within(".product-card", text: "Ceramic vase") { click_button "Add to cart" }

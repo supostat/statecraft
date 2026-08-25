@@ -46,4 +46,10 @@ RSpec.describe "the operator payment desk", type: :system do
     expect(page).to have_text("no branch from captured")
     expect(page).to have_css("code", text: "captured")
   end
+it "shows the calm empty desk when no payments exist" do
+  PaymentTransition.delete_all
+  Payment.delete_all
+  visit admin_payments_path
+  expect(page).to have_text("No payments yet.")
+end
 end

@@ -26,6 +26,19 @@ RSpec.describe "the operator order desk", type: :system do
     expect(page).to have_link("ORD-1003")
   end
 
+  it "hides the bypass off the cancellable edge and shows an empty filter honestly" do
+    visit admin_order_path(Order.find_by!(number: "ORD-1002"))
+    expect(page).to have_no_button("bypass cancel")
+
+    refunded_ids = Order.where(state: "refunded").ids
+    Payment.where(order_id: refunded_ids).delete_all
+    Shipment.where(order_id: refunded_ids).delete_all
+    Order.where(id: refunded_ids).delete_all
+
+    visit admin_orders_path(state: "refunded")
+    expect(page).to have_text("No orders in this state.")
+  end
+
   it "round-trips a click with the full mechanics on screen: buttons, panel, history" do
     order = Order.find_by!(number: "ORD-1001")
     visit admin_order_path(order)

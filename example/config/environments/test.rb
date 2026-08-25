@@ -8,4 +8,7 @@ Rails.application.configure do
   config.consider_all_requests_local = true
   config.action_dispatch.show_exceptions = :rescuable
   config.active_support.deprecation = :raise
+  # The stock Rails test default: raw request-spec POSTs carry no CSRF token;
+  # the system scenes still walk real forms with real tokens.
+  config.action_controller.allow_forgery_protection = false
 end
