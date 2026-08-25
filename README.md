@@ -222,12 +222,26 @@ order.offerable_events                             # => [:pay, :cancel] — grap
 order.refusals_for(:cancel)                        # => [#<event: :cancel, guard: :customer_cancellable?, layer: :event_record>]
 order.transitioned_to?(:paid)                      # strictly log-based
 OrderFlow.transitions_from(:pending)               # => [{ to: :paid, events: [:pay] }, ...]
+OrderFlow.to_mermaid                               # the graph as Mermaid stateDiagram-v2 text
 ```
 
 `transitions_from` is class-level and answers the graph's shape, not a
 prediction: no guards are consulted, a bare edge carries an empty `events`
 list, and a state outside the graph owns no edges. Pair it with
 `available_transitions` for the prediction.
+
+The shape also draws itself: `to_mermaid` returns the graph as Mermaid
+`stateDiagram-v2` text — guards stay out of the picture, exactly like
+`transitions_from`. Paste it into a markdown fence and GitHub renders the
+diagram; the quick-start machine above comes out as:
+
+<!-- illustrative -->
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> paid : pay
+  pending --> cancelled
+```
 
 `available_transitions` tells you not only *where* you can go but *how*:
 `via` lists the events whose guards pass, plus `:direct` when the edge is

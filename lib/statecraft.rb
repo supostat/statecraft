@@ -13,6 +13,7 @@ require_relative "statecraft/pipeline/edge_resolution"
 require_relative "statecraft/pipeline"
 require_relative "statecraft/pipeline/surface"
 require_relative "statecraft/introspection"
+require_relative "statecraft/diagram"
 require_relative "statecraft/mounting"
 
 ActiveSupport.on_load(:active_record) do

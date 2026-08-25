@@ -23,6 +23,7 @@ module Statecraft
 
     def self.included(machine_class)
       machine_class.extend(ClassMethods)
+      machine_class.extend(Diagram)
     end
 
     # Invokes a guard or callback handler with the honest-call convention:
