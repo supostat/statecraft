@@ -14,4 +14,6 @@ module AnalyticsSeeds
   end
 end
 
+return if Analytics::Event.any?
+
 AnalyticsSeeds.seed_events

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+return if Shipment.any?
+
 # Regular: packs and honestly waits in packed — the chain does not fire
 # where it is not declared.
 OrderSeeds.place_order(number: "ORD-1010", customer: "Jack Turner",

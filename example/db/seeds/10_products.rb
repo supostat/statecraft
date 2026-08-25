@@ -17,4 +17,6 @@ module ProductSeeds
   end
 end
 
+return if Product.any?
+
 ProductSeeds.seed_catalog

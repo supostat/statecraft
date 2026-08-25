@@ -69,6 +69,8 @@ module OrderSeeds
   # /readme
 end
 
+return if Order.any?
+
 OrderSeeds.place_order(number: "ORD-1001", customer: "Alice Carter",
                        items: { "Reading lamp" => 1, "Wool rug" => 1 })
 OrderSeeds.pay_order(
