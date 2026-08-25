@@ -199,6 +199,15 @@ def seed_read_corpus
       most_recent: true, metadata: {}, created_at: now, updated_at: now }
   end
   transition_rows.each_slice(10_000) { |slice| StatesmanOrderTransition.insert_all(slice) }
+
+  # Freshly bulk-loaded tables are not what production reads: the first
+  # scanner pays for hint bits and the visibility map is empty, so whichever
+  # stack happens to be measured first loses. Vacuum settles all three to the
+  # same steady state before any measurement.
+  %w[bench_statecraft_orders bench_aasm_orders
+     bench_statesman_orders bench_statesman_order_transitions].each do |seeded_table|
+    ActiveRecord::Base.connection.execute("VACUUM ANALYZE #{seeded_table}")
+  end
 end
 
 def print_environment_banner(script_name)

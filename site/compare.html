@@ -68,8 +68,8 @@
   /* bars: чистый CSS по прецеденту .race — ширина в % от лидера замера */
   .bars { display: grid; gap: var(--space-2); margin-block: var(--space-6); }
   .bar { display: grid; grid-template-columns: 11rem 1fr 9rem; gap: var(--space-3); align-items: center; font-family: var(--font-mono); font-size: var(--text-sm); }
-  .bar .track { background: var(--bg-raised); border: var(--border-w) solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-  .bar .fill { height: 1.1rem; background: color-mix(in oklab, var(--accent) 75%, var(--bg)); }
+  .bar .track { display: block; background: var(--bg-raised); border: var(--border-w) solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+  .bar .fill { display: block; height: 1.1rem; background: color-mix(in oklab, var(--accent) 75%, var(--bg)); }
   .bar.leader .fill { background: var(--accent); }
   .bar .value { text-align: right; white-space: nowrap; }
 
@@ -117,8 +117,9 @@
 ruby 3.4.10 · PostgreSQL 16.15 · Docker (aarch64-linux) · 2026-08-25
 corpus: 200,000 rows per stack (100,000 paid) · concurrency: 8 threads · ips: 5s runs, 2s warmup</div>
     <p class="muted">The stacks are isolated: separate tables, separate models, identical data.
-       Numbers are a single machine's snapshot — the shape of the comparison is the point,
-       not the absolute i/s.</p>
+       Bars show iterations per second — one iteration is the whole described operation, and
+       higher is better; bar widths are relative to each chart's leader. Numbers are a single
+       machine's snapshot — the shape of the comparison is the point, not the absolute i/s.</p>
   </div>
 </section>
 
@@ -130,24 +131,29 @@ corpus: 200,000 rows per stack (100,000 paid) · concurrency: 8 threads · ips: 
        paid orders is the same index-only scan for both. statesman derives state from its
        transition table, so <code>in_state(:paid)</code> pays a <code>most_recent</code> join.</p>
 
-    <div class="bars" role="img" aria-label="Counting 100k paid rows among 200k: aasm 258 per second, statecraft 176, statesman 48 — 5.35 times slower than the leader">
-      <div class="bar"><span>aasm · count</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="value">257.8 i/s</span></div>
-      <div class="bar leader"><span>statecraft · count</span><span class="track"><span class="fill" style="width:68%"></span></span><span class="value">176.4 i/s</span></div>
-      <div class="bar"><span>statesman · count</span><span class="track"><span class="fill" style="width:19%"></span></span><span class="value">48.2 i/s · 5.35x slower</span></div>
+    <div class="bars" role="img" aria-label="Counting 100k paid rows among 200k: aasm 279 per second and statecraft 274 within error of each other, statesman 51 — 5.48 times slower">
+      <div class="bar leader"><span>aasm · count</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="value">278.8 i/s</span></div>
+      <div class="bar"><span>statecraft · count</span><span class="track"><span class="fill" style="width:98%"></span></span><span class="value">273.7 i/s · same-ish</span></div>
+      <div class="bar"><span>statesman · count</span><span class="track"><span class="fill" style="width:18%"></span></span><span class="value">50.9 i/s · 5.48x slower</span></div>
     </div>
 
-    <div class="bars" role="img" aria-label="Loading a page of 100 paid records: statecraft 1818 per second, statesman 1583, aasm 609 — 2.98 times slower than the leader">
-      <div class="bar leader"><span>statecraft · page of 100</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="value">1,817.6 i/s</span></div>
-      <div class="bar"><span>statesman · page of 100</span><span class="track"><span class="fill" style="width:87%"></span></span><span class="value">1,582.7 i/s · 1.15x slower</span></div>
-      <div class="bar"><span>aasm · page of 100</span><span class="track"><span class="fill" style="width:34%"></span></span><span class="value">609.4 i/s · 2.98x slower</span></div>
+    <div class="bars" role="img" aria-label="Loading a page of 100 paid records: statecraft 1831 per second, statesman 1609 within error, aasm 610 — 3 times slower">
+      <div class="bar leader"><span>statecraft · page of 100</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="value">1,830.5 i/s</span></div>
+      <div class="bar"><span>statesman · page of 100</span><span class="track"><span class="fill" style="width:88%"></span></span><span class="value">1,609.4 i/s · same-ish</span></div>
+      <div class="bar"><span>aasm · page of 100</span><span class="track"><span class="fill" style="width:33%"></span></span><span class="value">609.7 i/s · 3.00x slower</span></div>
     </div>
 
     <div class="honest">
-      <p><b>Honest notes.</b> On the count, statecraft and aasm execute the <em>same
-      index-only scan</em> over identical tables — the 1.46x gap between them is run-to-run
-      spread in Docker (±15%), not architecture; statesman's 5.35x is architecture. On the
-      page load the ranking flips for a model-layer reason: instantiating 100 aasm records is
-      3x the cost of instantiating plain ones — the aasm module rides every instance.</p>
+      <p><b>Honest notes.</b> The column read is a tie by construction and measures as one:
+      statecraft and aasm run the <em>same index-only scan</em> over identical tables.
+      An earlier revision of this page showed a 1.46x gap here — that was a methodology bug,
+      not a difference: sequential measurement over freshly bulk-loaded tables charged the
+      first-measured stack for PostgreSQL's hint-bit writes and empty visibility map. The
+      corpus is now vacuumed before any measurement and an interleaved cross-check confirms
+      parity (~3.9 vs ~4.0 ms per query). statesman's 5.48x <em>is</em> architecture — the
+      <code>most_recent</code> join. On the page load the ranking splits for a model-layer
+      reason: instantiating 100 aasm records costs 3x plain ones — the aasm module rides
+      every instance.</p>
     </div>
   </div>
 </section>
