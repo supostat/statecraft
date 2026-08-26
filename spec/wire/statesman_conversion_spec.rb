@@ -24,20 +24,26 @@ RSpec.describe "statesman conversion", :wire do
     end
   end
 
+  # Own tables, never the suite's shared orders/order_transitions: dropping
+  # those would pull the schema out from under every other spec. The model
+  # constants stay canonical — statecraft derives the log's foreign key from
+  # the MODEL name, so Order still means order_id whatever the table is called.
+  let(:parent_table) { :conversion_orders }
+  let(:log_table) { :conversion_order_transitions }
+
   def create_statesman_schema
     connection = ActiveRecord::Base.connection
-    connection.drop_table(:order_transitions, if_exists: true, force: :cascade)
-    connection.drop_table(:orders, if_exists: true, force: :cascade)
+    drop_fixture_tables
 
     # The shape statesman's own generator emits: no state column on the
     # parent, and a transitions table keyed by sort_key with most_recent,
     # text metadata and both unique indexes.
-    connection.create_table :orders do |t|
+    connection.create_table parent_table do |t|
       t.string :number
       t.timestamps null: false
     end
 
-    connection.create_table :order_transitions do |t|
+    connection.create_table log_table do |t|
       t.string :to_state, null: false
       t.text :metadata, default: "{}"
       t.integer :sort_key, null: false
@@ -45,28 +51,49 @@ RSpec.describe "statesman conversion", :wire do
       t.boolean :most_recent, null: false
       t.timestamps null: false
     end
-    connection.add_index :order_transitions, %i[order_id sort_key], unique: true
-    connection.add_index :order_transitions, %i[order_id most_recent],
+    connection.add_index log_table, %i[order_id sort_key], unique: true
+    connection.add_index log_table, %i[order_id most_recent],
                          unique: true, where: "most_recent"
-    connection.add_foreign_key :order_transitions, :orders
+    connection.add_foreign_key log_table, parent_table, column: :order_id
+  end
+
+  def drop_fixture_tables
+    connection = ActiveRecord::Base.connection
+    connection.drop_table(log_table, if_exists: true, force: :cascade)
+    connection.drop_table(parent_table, if_exists: true, force: :cascade)
   end
 
   def seed_statesman_history
     connection = ActiveRecord::Base.connection
-    walked = connection.insert("INSERT INTO orders (number, created_at, updated_at) " \
+    walked = connection.insert("INSERT INTO #{parent_table} (number, created_at, updated_at) " \
                                "VALUES ('ORD-1', NOW(), NOW())")
-    untouched = connection.insert("INSERT INTO orders (number, created_at, updated_at) " \
+    untouched = connection.insert("INSERT INTO #{parent_table} (number, created_at, updated_at) " \
                                   "VALUES ('ORD-2', NOW(), NOW())")
 
     [["paid", 10, false, "2026-08-01"], ["shipped", 20, true, "2026-08-02"]].each do |to, key, recent, day|
       connection.insert(<<~SQL)
-        INSERT INTO order_transitions
+        INSERT INTO #{log_table}
           (to_state, metadata, sort_key, order_id, most_recent, created_at, updated_at)
         VALUES ('#{to}', '{"reason":"seeded"}', #{key}, #{walked}, #{recent}, '#{day}', '#{day}')
       SQL
     end
 
     [walked, untouched]
+  end
+
+  # The models are stubbed BEFORE generating: the generator reads the table
+  # name off the loaded model, so this is what points the migrations at the
+  # fixture tables instead of the suite's shared ones.
+  def stub_models
+    fixture_parent = parent_table.to_s
+    fixture_log = log_table.to_s
+
+    stub_const("OrderTransition", Class.new(ActiveRecord::Base) do
+      self.table_name = fixture_log
+    end)
+    stub_const("Order", Class.new(ActiveRecord::Base) do
+      self.table_name = fixture_parent
+    end)
   end
 
   def generate_migrations(destination)
@@ -89,15 +116,10 @@ RSpec.describe "statesman conversion", :wire do
     load File.join(destination, "app/state_machines/application_machine.rb")
     load File.join(destination, "app/state_machines/order_flow.rb")
 
-    stub_const("OrderTransition", Class.new(ActiveRecord::Base) do
-      self.table_name = "order_transitions"
-    end)
-    stub_const("Order", Class.new(ActiveRecord::Base) do
-      self.table_name = "orders"
-    end)
-
-    # Mounting AFTER stub_const: inside a Class.new body the model has no
+    # Columns changed under the models since they were stubbed, and mounting
+    # happens on the NAMED class: inside a Class.new body the model has no
     # name yet, and the log-class convention is derived from it.
+    [Order, OrderTransition].each(&:reset_column_information)
     Order.state_machine(OrderFlow, changed_at: true)
   end
 
@@ -105,6 +127,7 @@ RSpec.describe "statesman conversion", :wire do
     Dir.mktmpdir("statecraft-conversion") do |tmp|
       create_statesman_schema
       walked_id, untouched_id = seed_statesman_history
+      stub_models
       generate_migrations(tmp)
       connection = ActiveRecord::Base.connection
 
@@ -114,9 +137,9 @@ RSpec.describe "statesman conversion", :wire do
       # The runbook's catch-up step lives HERE, between the backfill and the
       # finalize: rerunning is idempotent while sort_key is still alive, and
       # finalize drops the very column the backfill reads.
-      caught_up = connection.select_all("SELECT id, from_state FROM order_transitions ORDER BY id").to_a
+      caught_up = connection.select_all("SELECT id, from_state FROM #{log_table} ORDER BY id").to_a
       expect { backfill.new.up }.not_to raise_error
-      expect(connection.select_all("SELECT id, from_state FROM order_transitions ORDER BY id").to_a)
+      expect(connection.select_all("SELECT id, from_state FROM #{log_table} ORDER BY id").to_a)
         .to eq(caught_up)
 
       run_migration(tmp, "finalize")
@@ -124,8 +147,9 @@ RSpec.describe "statesman conversion", :wire do
       # The parent carries the last transition by sort_key, and the moment it
       # happened; a record that never transitioned stays initial with no
       # changed_at, exactly like a freshly created one.
-      walked = connection.select_one("SELECT state, state_changed_at FROM orders WHERE id = #{walked_id}")
-      untouched = connection.select_one("SELECT state, state_changed_at FROM orders WHERE id = #{untouched_id}")
+      converted = "SELECT state, state_changed_at FROM #{parent_table} WHERE id = "
+      walked = connection.select_one(converted + walked_id.to_s)
+      untouched = connection.select_one(converted + untouched_id.to_s)
       expect(walked["state"]).to eq("shipped")
       expect(walked["state_changed_at"].to_s).to start_with("2026-08-02")
       expect(untouched["state"]).to eq("pending")
@@ -134,21 +158,21 @@ RSpec.describe "statesman conversion", :wire do
       # The imported history reads as direct transitions with a restored
       # chain: the first hop starts from the initial state.
       imported = connection.select_all(
-        "SELECT from_state, to_state, event, metadata FROM order_transitions " \
+        "SELECT from_state, to_state, event, metadata FROM #{log_table} " \
         "WHERE order_id = #{walked_id} ORDER BY id"
       ).to_a
       expect(imported.map { |row| [row["from_state"], row["to_state"]] })
         .to eq([%w[pending paid], %w[paid shipped]])
       expect(imported.map { |row| row["event"] }).to all(be_nil)
-      expect(connection.select_value("SELECT metadata->>'reason' FROM order_transitions " \
+      expect(connection.select_value("SELECT metadata->>'reason' FROM #{log_table} " \
                                      "WHERE order_id = #{walked_id} ORDER BY id LIMIT 1"))
         .to eq("seeded")
 
       # The statesman columns are gone and the state column is indexed — the
       # reference schema's promise the first conversion forgot.
-      expect(connection.columns(:order_transitions).map(&:name))
+      expect(connection.columns(log_table).map(&:name))
         .not_to include("sort_key", "most_recent", "updated_at")
-      expect(connection.indexes(:orders).flat_map(&:columns)).to include("state")
+      expect(connection.indexes(parent_table).flat_map(&:columns)).to include("state")
 
       # And the converted table keeps working as a statecraft log.
       mount_converted_model(tmp)
@@ -168,8 +192,8 @@ RSpec.describe "statesman conversion", :wire do
          ConvertOrderTransitionsFinalize ApplicationMachine OrderFlow].each do |loaded_constant|
         Object.send(:remove_const, loaded_constant) if Object.const_defined?(loaded_constant)
       end
-      ActiveRecord::Base.connection.drop_table(:order_transitions, if_exists: true, force: :cascade)
-      ActiveRecord::Base.connection.drop_table(:orders, if_exists: true, force: :cascade)
+      ActiveRecord::Base.connection.drop_table(log_table, if_exists: true, force: :cascade)
+      ActiveRecord::Base.connection.drop_table(parent_table, if_exists: true, force: :cascade)
     end
   end
 end
