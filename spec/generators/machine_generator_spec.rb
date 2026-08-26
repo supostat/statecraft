@@ -94,6 +94,45 @@ RSpec.describe "statecraft:machine generator" do
     end
   end
 
+  describe "the --versioning flag" do
+    it "adds the column to a fresh table and mounts with versioning: true" do
+      within_tmp do |tmp|
+        run_generator(["Order", "--versioning"], tmp)
+
+        migration_source = File.read(Dir[File.join(tmp, "db/migrate/*_create_order_state_machine.rb")].first)
+        expect(migration_source).to include("t.bigint :state_version, null: false, default: 0")
+
+        expect(File.read(File.join(tmp, "app/models/order.rb")))
+          .to include("state_machine OrderFlow, changed_at: true, versioning: true, helpers: true, scopes: true")
+      end
+    end
+
+    it "adds the column to an existing table and injects versioning into the mounting" do
+      within_tmp do |tmp|
+        model_path = File.join(tmp, "app/models/legacy_item.rb")
+        FileUtils.mkdir_p(File.dirname(model_path))
+        File.write(model_path, "class LegacyItem < ApplicationRecord\nend\n")
+
+        run_generator(["LegacyItem", "--versioning"], tmp)
+
+        migration_source = File.read(Dir[File.join(tmp, "db/migrate/*_create_legacy_item_state_machine.rb")].first)
+        expect(migration_source)
+          .to include("add_column :legacy_items, :state_version, :bigint, null: false, default: 0")
+        expect(File.read(model_path)).to include("versioning: true")
+      end
+    end
+
+    it "emits neither the column nor the option without the flag" do
+      within_tmp do |tmp|
+        run_generator(["Order"], tmp)
+
+        migration_source = File.read(Dir[File.join(tmp, "db/migrate/*_create_order_state_machine.rb")].first)
+        expect(migration_source).not_to include("state_version")
+        expect(File.read(File.join(tmp, "app/models/order.rb"))).not_to include("versioning")
+      end
+    end
+  end
+
   describe "a namespaced model" do
     it "places every artifact by the full path and prefixes the tables" do
       within_tmp do |tmp|

@@ -5,6 +5,9 @@ class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Mi
     create_table :<%= table_name %> do |t|
       t.string :state, null: false, default: "pending", index: true
       t.datetime :state_changed_at
+<% if versioning? -%>
+      t.bigint :state_version, null: false, default: 0
+<% end -%>
       t.timestamps null: false
     end
 

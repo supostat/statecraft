@@ -13,8 +13,13 @@ Description:
     migration lands in the migrations_paths configured for that database
     (db/migrate when none is configured).
 
+    With --versioning the migration also adds a state_version column and
+    the mounting carries versioning: true — a tagged CAS that refuses
+    stale seen: tokens with Statecraft::StaleTransition.
+
 Example:
     bin/rails generate statecraft:machine Order
+    bin/rails generate statecraft:machine Order --versioning
     bin/rails generate statecraft:machine Shop::Order
 
     This will create:

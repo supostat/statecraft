@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 class <%= class_name %> < ApplicationRecord
-  state_machine <%= class_name %>Flow, changed_at: true, helpers: true, scopes: true
+  state_machine <%= class_name %>Flow, <%= mounting_options %>
 end

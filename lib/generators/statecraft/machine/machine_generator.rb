@@ -18,6 +18,10 @@ module Statecraft
 
       source_root File.expand_path("templates", __dir__)
 
+      class_option :versioning, type: :boolean, default: false,
+                                desc: "Add a state_version column and mount with versioning: " \
+                                      "true — a tagged CAS that refuses stale seen: tokens"
+
       def detect_model_presence
         @existing_model = File.exist?(File.join(destination_root, model_file))
       end
@@ -71,7 +75,17 @@ module Statecraft
       end
 
       def mounting_line
-        "  state_machine #{class_name}Flow, changed_at: true, helpers: true, scopes: true\n"
+        "  state_machine #{class_name}Flow, #{mounting_options}\n"
+      end
+
+      def mounting_options
+        options_list = ["changed_at: true"]
+        options_list << "versioning: true" if options[:versioning]
+        (options_list + ["helpers: true", "scopes: true"]).join(", ")
+      end
+
+      def versioning?
+        options[:versioning]
       end
 
       # inject_into_class matches the literal `class <name>` line, so the name

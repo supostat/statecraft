@@ -5,6 +5,9 @@ class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Mi
     add_column :<%= table_name %>, :state, :string, null: false, default: "pending"
     add_index :<%= table_name %>, :state
     add_column :<%= table_name %>, :state_changed_at, :datetime
+<% if versioning? -%>
+    add_column :<%= table_name %>, :state_version, :bigint, null: false, default: 0
+<% end -%>
 
     # The existing table may carry legacy values, so no CHECK constraint is
     # generated here. To add one later without blocking writes:
