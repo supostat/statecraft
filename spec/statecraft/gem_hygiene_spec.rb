@@ -17,6 +17,31 @@ RSpec.describe "gem hygiene" do
     expect($CHILD_STATUS).to be_success, "gem loads Rails at runtime: #{output}"
   end
 
+  it "keeps statecraft/rspec out of the core require (isolated process)" do
+    probe = <<~RUBY
+      require "statecraft"
+      loaded = $LOADED_FEATURES.grep(%r{statecraft/rspec})
+      abort("statecraft/rspec loaded eagerly: \#{loaded.first}") unless loaded.empty?
+    RUBY
+
+    output = IO.popen([RbConfig.ruby, "-Ilib", "-e", probe], err: %i[child out], &:read)
+    expect($CHILD_STATUS).to be_success, "the core require pulls the matchers in: #{output}"
+  end
+
+  it "refuses statecraft/rspec without RSpec, naming the fix (isolated process)" do
+    probe = <<~RUBY
+      begin
+        require "statecraft/rspec"
+        abort("statecraft/rspec loaded without RSpec present")
+      rescue Statecraft::Error => error
+        abort("unhelpful message: \#{error.message}") unless error.message.include?("RSpec")
+      end
+    RUBY
+
+    output = IO.popen([RbConfig.ruby, "-Ilib", "-e", probe], err: %i[child out], &:read)
+    expect($CHILD_STATUS).to be_success, output
+  end
+
   it "exposes a semantic version" do
     expect(Statecraft::VERSION).to match(/\A\d+\.\d+\.\d+\z/)
   end
