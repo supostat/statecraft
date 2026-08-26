@@ -51,6 +51,7 @@ RSpec.describe "gem hygiene" do
       Statecraft::GuardFailed,
       Statecraft::InvalidTransition,
       Statecraft::TransitionConflict,
+      Statecraft::StaleTransition,
       Statecraft::UnsavedRecordError,
       Statecraft::DirtyRecordError,
       Statecraft::NestedTransitionError,

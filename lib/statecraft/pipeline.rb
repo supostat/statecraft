@@ -29,6 +29,7 @@ module Statecraft
     MAX_CHAIN_DEPTH = 16
 
     include EdgeResolution
+    include Versioning
 
     def self.transition_stack
       ActiveSupport::IsolatedExecutionState[STACK_KEY] ||= []
@@ -41,15 +42,15 @@ module Statecraft
       @machine_instance = @configuration.machine_class.new
     end
 
-    def direct(to_state, metadata:, bypass_events:)
-      run(metadata) do |current_state|
+    def direct(to_state, metadata:, bypass_events:, seen: nil)
+      run(metadata, seen: seen) do |current_state|
         edge = resolve_direct_edge(current_state, to_state.to_sym, bypass_events)
         [edge, nil, bypass_events]
       end
     end
 
-    def fire(event_name, metadata:)
-      run(metadata) do |current_state|
+    def fire(event_name, metadata:, seen: nil)
+      run(metadata, seen: seen) do |current_state|
         edge = resolve_event_edge(current_state, event_name.to_sym)
         [edge, event_name.to_sym, false]
       end
@@ -59,10 +60,12 @@ module Statecraft
 
     attr_reader :record, :configuration, :graph, :machine_instance
 
-    def run(raw_metadata, &edge_resolver)
+    def run(raw_metadata, seen: nil, &edge_resolver)
       raise UnsavedRecordError.new(record: record) unless record.persisted?
 
       assert_single_column_primary_key
+      @raw_seen = seen
+      @seen = normalize_seen(seen)
       metadata = Metadata.normalize(raw_metadata)
       started_at = Time.current
       begin
@@ -91,6 +94,7 @@ module Statecraft
         case error
         when GuardFailed then [:guard_failed, { guard: error.guard }]
         when InvalidTransition then [:invalid_transition, { requested: error.requested }]
+        when StaleTransition then [:stale, { expected_version: error.expected_version, seen: error.seen }]
         when TransitionConflict then [:conflict, { expected_from: error.expected_from }]
         end
       Instrumentation.publish_failure(
@@ -105,6 +109,7 @@ module Statecraft
           warn_when_row_locking_unavailable
           record.reload(lock: true)
           assert_lock_saw_expected_state(edge)
+          assert_lock_saw_expected_version(edge)
         end
         transition_time = Time.current
         run_guards(edge, event, bypass, metadata)
@@ -204,17 +209,21 @@ module Statecraft
     end
 
     def cas_update!(edge, transition_time)
-      affected_rows = base_class.unscoped
-                                .where(base_class.primary_key => record.id,
-                                       configuration.column => edge.from.to_s)
-                                .update_all(cas_updates(edge, transition_time))
-      raise TransitionConflict.new(record: record, expected_from: edge.from) if affected_rows.zero?
+      scope = base_class.unscoped
+                        .where(base_class.primary_key => record.id,
+                               configuration.column => edge.from.to_s)
+      scope = scope.where(version_column => expected_version) if version_column
+      affected_rows = scope.update_all(cas_updates(edge, transition_time))
+      raise cas_refusal(edge) if affected_rows.zero?
     end
 
     def cas_updates(edge, transition_time)
       updates = { configuration.column => edge.to.to_s }
       updates[:updated_at] = transition_time if touch_updated_at?
       updates[changed_at_column] = transition_time if changed_at_column
+      # The literal is correct by construction: the CAS WHERE guarantees the
+      # row held exactly expected_version, so the memory mirror stays exact.
+      updates[version_column] = expected_version + 1 if version_column
       updates
     end
 

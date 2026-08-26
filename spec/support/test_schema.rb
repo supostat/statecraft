@@ -5,7 +5,10 @@
 # once and truncated by the specs that need isolation.
 module TestSchema
   def self.load!
-    return if ActiveRecord::Base.connection.table_exists?(:orders)
+    if ActiveRecord::Base.connection.table_exists?(:orders)
+      ensure_version_column
+      return
+    end
 
     SpecDatabase.define_schema do
       create_table :orders, force: true do |t|
@@ -13,6 +16,7 @@ module TestSchema
         t.string :state, null: false, default: "pending"
         t.string :status, null: false, default: "draft"
         t.datetime :state_changed_at
+        t.bigint :state_version, null: false, default: 0
         t.timestamps null: false
       end
 
@@ -27,5 +31,15 @@ module TestSchema
         t.index %i[order_id id]
       end
     end
+  end
+
+  # A persistent database (the dockerized PostgreSQL volume) may carry the
+  # orders table from before the versioning column existed; catch it up
+  # instead of recreating a table other rows reference.
+  def self.ensure_version_column
+    connection = ActiveRecord::Base.connection
+    return if connection.columns(:orders).map(&:name).include?("state_version")
+
+    connection.add_column :orders, :state_version, :bigint, null: false, default: 0
   end
 end

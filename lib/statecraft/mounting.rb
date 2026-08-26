@@ -10,16 +10,17 @@ module Statecraft
   # in_state?). Everything internal goes through base_class.
   module Mounting
     Configuration = Struct.new(
-      :machine_class, :log_class, :column, :changed_at_column, :touch, :helpers, :scopes,
-      :log_foreign_key,
+      :machine_class, :log_class, :column, :changed_at_column, :version_column, :touch,
+      :helpers, :scopes, :log_foreign_key,
       keyword_init: true
     )
 
-    def state_machine(machine_class, log: nil, column: :state, changed_at: false, touch: true,
-                      helpers: false, scopes: false)
+    def state_machine(machine_class, log: nil, column: :state, changed_at: false,
+                      versioning: false, touch: true, helpers: false, scopes: false)
       Builder.new(
         model: self, machine_class: machine_class, log: log, column: column,
-        changed_at: changed_at, touch: touch, helpers: helpers, scopes: scopes
+        changed_at: changed_at, versioning: versioning, touch: touch,
+        helpers: helpers, scopes: scopes
       ).mount
     end
 
@@ -27,16 +28,20 @@ module Statecraft
     # class hierarchies only — never on the schema and never on a live
     # connection, so mounting is safe at load time.
     class Builder
-      def initialize(model:, machine_class:, log:, column:, changed_at:, touch:, helpers:, scopes:)
+      # rubocop:disable Metrics/ParameterLists -- mirrors state_machine's kwargs one-to-one
+      def initialize(model:, machine_class:, log:, column:, changed_at:, versioning:, touch:,
+                     helpers:, scopes:)
         @model = model
         @machine_class = machine_class
         @log_option = log
         @column = column
         @changed_at = changed_at
+        @versioning = versioning
         @touch = touch
         @helpers = helpers
         @scopes = scopes
       end
+      # rubocop:enable Metrics/ParameterLists
 
       def mount
         assert_not_mounted
@@ -132,6 +137,7 @@ module Statecraft
           log_class: log_class,
           column: @column.to_sym,
           changed_at_column: resolve_changed_at_column,
+          version_column: resolve_version_column,
           touch: @touch,
           helpers: @helpers,
           scopes: @scopes,
@@ -144,6 +150,14 @@ module Statecraft
         when false then nil
         when true then :"#{@column}_changed_at"
         else @changed_at.to_sym
+        end
+      end
+
+      def resolve_version_column
+        case @versioning
+        when false then nil
+        when true then :"#{@column}_version"
+        else @versioning.to_sym
         end
       end
 

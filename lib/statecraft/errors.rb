@@ -38,11 +38,26 @@ module Statecraft
   class TransitionConflict < Error
     attr_reader :record, :expected_from
 
-    def initialize(record:, expected_from:)
+    def initialize(record:, expected_from:, message: nil)
       @record = record
       @expected_from = expected_from
-      super("concurrent update detected for #{record.class.name}##{record.id}: " \
-            "expected state #{expected_from.inspect}, another writer got there first")
+      super(message || "concurrent update detected for #{record.class.name}##{record.id}: " \
+                       "expected state #{expected_from.inspect}, another writer got there first")
+    end
+  end
+
+  # The refusal of a seen: token: the snapshot the caller acted on is no
+  # longer the row's version. A subclass of TransitionConflict, so existing
+  # rescues keep catching it; controllers map it to 409 specifically.
+  class StaleTransition < TransitionConflict
+    attr_reader :expected_version, :seen
+
+    def initialize(record:, expected_from:, expected_version:, seen:)
+      @expected_version = expected_version
+      @seen = seen
+      super(record: record, expected_from: expected_from,
+            message: "stale transition for #{record.class.name}##{record.id}: " \
+                     "the caller saw version #{seen.inspect}, but the row has moved on")
     end
   end
 
