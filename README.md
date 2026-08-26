@@ -337,6 +337,63 @@ rolling rename recipe on the column:
    after the cleanup.
 3. Drop the old state and its edges; narrow the CHECK back.
 
+## Migrating from statesman
+
+The names already match: statesman's `order_transitions` table and
+`OrderTransition` class are exactly what statecraft's log convention expects,
+so the move is an in-place conversion of the table you already have — history
+stays where it is, nothing is copied.
+
+```sh
+bin/rails generate statecraft:from_statesman Order
+```
+
+The generator reads the live statesman machine through reflection (pass the
+class as a second argument when it is not `OrderStateMachine`; point at the
+class that declares the DSL — statesman graphs are not inherited) and writes
+three things: the conversion migration, a machine skeleton, and the
+`state_machine` mounting line. Two things it honestly cannot write: statesman
+has no events, so every edge arrives as a bare `transition` for you to name,
+and guard bodies are anonymous blocks — each becomes a TODO comment carrying
+the original `file:line`.
+
+The migration converts in this order:
+
+1. The model gains its `state` column, backfilled from the **last transition
+   by `sort_key`** — deliberately not `most_recent`, which drifts out of sync
+   often enough that statesman ships a repair task for it. Rows with no
+   transitions get the initial state; a CHECK constraint pins the value set.
+2. The transitions table gains `from_state` (a `LAG` window along the
+   `sort_key` chain, the first hop starting from the initial state) and a
+   nullable `event` — imported history reads as direct transitions, which is
+   the honest description of what statesman recorded.
+3. A text `metadata` column becomes native json(b) in one indivisible move
+   with removing `serialize` from the model: neither library works in the
+   half-converted state, so the type change and the code change ship
+   together.
+4. The foreign key is re-created with `ON DELETE CASCADE` (statesman's
+   default one carries no action), statesman's unique indexes go, and the
+   `[foreign_key, id]` index that serves statecraft's history reads arrives.
+5. `sort_key`, `most_recent` and `updated_at` are dropped last — the first
+   two would break the log INSERT outright, being NOT NULL without defaults.
+
+The migration's header names two pre-flight checks on live data — that the
+id order agrees with the `sort_key` order (statecraft reads history by id),
+and that a text `metadata` column holds valid JSON in every row (rows written
+by raw SQL may not survive the cast). Run both before migrating.
+
+After the migration, finish by hand (the generator prints this list): drop
+`Statesman::Adapters::ActiveRecordTransition` and the
+`after_destroy :update_most_recent` callback from the transition model — they
+read dropped columns — plus `ActiveRecordQueries` from the model and the
+`Statesman.configure` initializer once no machine is left; then name your
+events in the skeleton. One guarantee moves rather than disappears: the
+race safety statesman derived from its unique `(parent, sort_key)` index is
+statecraft's CAS on the state column.
+
+Outside Rails, the same steps work by hand — pair the migration order above
+with the reference schema in [Outside Rails](#outside-rails).
+
 ## PII and erasure
 
 Metadata is the only place personal data can live — `from_state`, `to_state`
