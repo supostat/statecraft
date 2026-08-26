@@ -8,6 +8,7 @@ abort("The Rails environment is running in #{Rails.env} mode!") unless Rails.env
 
 require "rspec/rails"
 require "capybara/rspec"
+require "statecraft/rspec"
 require_relative "spec_helper"
 
 Dir[File.expand_path("support/**/*.rb", __dir__)].each { |file| require file }

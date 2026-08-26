@@ -27,8 +27,7 @@ RSpec.describe OrderFlow do
     end
 
     it "exposes both event names on the edge's static shape" do
-      edge = OrderFlow.transitions_from(:pending).find { |descriptor| descriptor[:to] == :cancelled }
-      expect(edge[:events]).to eq(%i[cancel admin_override])
+      expect(OrderFlow).to have_edge(:pending, :cancelled).via(:cancel, :admin_override)
     end
 
     it "refuses a bare direct transition on the guarded-events edge" do

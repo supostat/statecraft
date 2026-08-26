@@ -13,10 +13,10 @@ RSpec.describe ConfirmPayment do
   it "captures the payment AND pays the order — the whole two-step link" do
     payment = pending_payment
 
-    described_class.call(payment: payment)
+    expect { described_class.call(payment: payment) }
+      .to transition(payment).from(:pending).to(:captured).via_event(:capture)
 
-    expect(payment.reload[:state]).to eq("captured")
-    expect(payment.order.reload[:state]).to eq("paid")
+    expect(payment.order).to have_transitioned_to(:paid)
     expect(payment.order.last_transition.event).to eq("pay")
   end
 

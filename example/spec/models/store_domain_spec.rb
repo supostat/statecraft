@@ -30,19 +30,19 @@ RSpec.describe "the store domain" do
   describe "refundable? across shipment states" do
     it "refunds while there is no shipment or it has not sailed, refuses after" do
       order = OrderSeeds.pay_order(place_order("SPEC-REFUND-MATRIX"))
-      expect(order.can_fire?(:refund)).to be(true)
+      expect(order).to allow_event(:refund)
 
       shipment = Shipment.create!(number: "SHIP-SPEC-MATRIX", order: order)
-      expect(order.reload.can_fire?(:refund)).to be(true)
+      expect(order.reload).to allow_event(:refund)
 
       shipment.pack!(metadata: {})
-      expect(order.reload.can_fire?(:refund)).to be(true)
+      expect(order.reload).to allow_event(:refund)
 
       shipment.ship!(metadata: {})
-      expect(order.reload.can_fire?(:refund)).to be(false)
+      expect(order.reload).to refuse_event(:refund).because_of(:refundable?)
 
       shipment.deliver!(metadata: {})
-      expect(order.reload.can_fire?(:refund)).to be(false)
+      expect(order.reload).to refuse_event(:refund).because_of(:refundable?)
     end
   end
 
