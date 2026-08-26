@@ -30,6 +30,15 @@ class ApplicationController < ActionController::Base
                 alert: "Another operator got there first — check and retry: #{error.message}"
   end
 
+  # The 409 of the family: the submitted form rendered an outdated card —
+  # registered after the parent so the subclass gets its own words.
+  rescue_from Statecraft::StaleTransition do |error|
+    redirect_to stale_record_path(error.record),
+                alert: "You were looking at an outdated card — someone changed this " \
+                       "#{error.record.class.base_class.name.downcase} while the page was open. " \
+                       "Review the fresh card and retry."
+  end
+
   private
 
   # The fresh operator card of whatever record went stale; base_class keeps

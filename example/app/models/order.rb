@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Order < ApplicationRecord
-  state_machine OrderFlow, helpers: true, scopes: true
+  state_machine OrderFlow, versioning: true, helpers: true, scopes: true
 
   # Optional on purpose: orders from the pre-role era stay legal.
   belongs_to :user, optional: true

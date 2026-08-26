@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_140001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_150001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -51,6 +51,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_140001) do
     t.boolean "express", default: false, null: false
     t.string "number", null: false
     t.string "state", default: "pending", null: false
+    t.bigint "state_version", default: 0, null: false
     t.string "type"
     t.datetime "updated_at", null: false
     t.bigint "user_id"
@@ -133,7 +134,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_140001) do
     t.string "name", null: false
     t.string "role", default: "user", null: false
     t.datetime "updated_at", null: false
-    t.check_constraint "role::text = ANY (ARRAY['user'::character varying, 'manager'::character varying, 'admin'::character varying]::text[])", name: "users_role_check"
+    t.check_constraint "role::text = ANY (ARRAY['user'::character varying::text, 'manager'::character varying::text, 'admin'::character varying::text])", name: "users_role_check"
   end
 
   add_foreign_key "order_items", "orders", on_delete: :cascade

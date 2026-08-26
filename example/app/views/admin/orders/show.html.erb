@@ -19,6 +19,7 @@
 <div class="work-card">
 <%# readme: preview-pattern %>
 <%= form_with url: preview_admin_order_path(@order), method: :post, local: true do %>
+  <input type="hidden" name="seen" value="<%= @order[:state_version] %>">
   <fieldset>
     <legend>Metadata for the next action</legend>
     <label>

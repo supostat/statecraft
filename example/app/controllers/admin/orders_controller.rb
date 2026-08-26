@@ -74,7 +74,7 @@ module Admin
       @order = Order.find(params[:id])
       authorize! event_name, @order
       @metadata = submitted_metadata
-      @order.fire!(event_name, metadata: @metadata)
+      @order.fire!(event_name, metadata: @metadata, seen: params[:seen].presence)
       redirect_to admin_order_path(@order),
                   notice: "#{event_name} fired: the order is now #{@order[:state]}."
     rescue Statecraft::GuardFailed => error
