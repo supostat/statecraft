@@ -41,10 +41,11 @@ RSpec.describe "boot safety" do
   end
 
   it "records refusals with their reason" do
+    # The real failure payload carries no from/to/event keys: the
+    # transition never happened.
     payload = {
       record_class: "BootProbe", record_id: 1,
-      machine: "BootProbeFlow", from: :pending, to: :paid, event: :pay,
-      reason: "guard_failed"
+      machine: "BootProbeFlow", reason: "guard_failed"
     }
     expect do
       ActiveSupport::Notifications.publish(

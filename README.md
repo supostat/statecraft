@@ -210,6 +210,70 @@ through untouched: those errors mean "restart the whole transaction", a
 different protocol than the conflict's "continue from clean state", and the
 retry policy belongs to whoever chose the isolation level.
 
+## Stale transitions: versioning against ABA
+
+The CAS above compares the state's *value* — so a state that went away and
+came back (`pending → paid → … → pending`) passes for the state an open
+page rendered minutes ago. That is the ABA problem, and `versioning: true`
+closes it:
+
+<!-- illustrative -->
+```ruby
+class Order < ApplicationRecord
+  state_machine OrderFlow, versioning: true  # the state_version column
+end
+```
+
+With the option every transition compares-and-swaps on the *pair* of state
+and version and increments the version in the same UPDATE — a returned
+state no longer matches, even without any token. `true` names the column
+`<column>_version`; a symbol overrides the name. The column is a plain
+`bigint NOT NULL DEFAULT 0`: `rails g statecraft:machine Order --versioning`
+generates it, and for an existing table one step is enough — on
+PostgreSQL 11+ an `add_column` with a constant default is metadata-only,
+no table rewrite:
+
+<!-- illustrative -->
+```ruby
+add_column :orders, :state_version, :bigint, null: false, default: 0
+```
+
+The user-facing half is the `seen:` token: render the version into the
+form, send it back, and the pipeline refuses the action when the row has
+moved on — `Statecraft::StaleTransition`, a `TransitionConflict` subclass
+carrying `expected_version` and `seen`, published as reason `:stale`:
+
+<!-- illustrative -->
+```erb
+<input type="hidden" name="seen" value="<%= order.state_version %>">
+```
+
+<!-- illustrative -->
+```ruby
+def cancel
+  order = Order.find(params[:id])
+  order.cancel!(metadata: cancel_metadata, seen: params[:seen])
+  redirect_to order_path(order), notice: "Cancelled."
+rescue Statecraft::StaleTransition
+  head :conflict  # the API mapping: 409
+  # a form flow redirects instead:
+  # redirect_to order_path(order),
+  #             alert: "This order changed while the page was open."
+end
+```
+
+`seen:` rides all four surface forms and the helper verbs. A string token
+straight from params is fine — the pipeline normalizes it with `Integer()`,
+and garbage raises `ArgumentError` loudly. The honest limits: staleness
+exists only where a token was given — without `seen:` a version mismatch
+is the ordinary `TransitionConflict`; the early deterministic check runs
+only under `lock: true`, where the reload holds the row's real version —
+without the lock the CAS itself is the check, since a fresh token can
+outrun a stale in-memory record; and `seen:` on a mounting without
+`versioning:` raises a `CompilationError` naming the fix instead of
+silently skipping the protection. Reads stay join-free: the version lives
+on the parent row, right next to the state.
+
 ## Introspection
 
 <!-- illustrative -->
@@ -706,13 +770,12 @@ ActiveSupport::Notifications.subscribe("transition.statecraft") do |_name, _star
   )
 end
 
+# The failure payload names the record, the machine and the reason — it
+# carries no from/to/event keys: the transition never happened.
 ActiveSupport::Notifications.subscribe("transition_failed.statecraft") do |_name, _started, _finished, _id, payload|
   OperationEntry.create!(
     record_class: payload[:record_class],
     record_id: payload[:record_id].to_s,
-    from_state: payload[:from],
-    to_state: payload[:to],
-    event_name: payload[:event],
     outcome: "refused",
     reason: payload[:reason].to_s
   )

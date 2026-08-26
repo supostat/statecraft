@@ -17,13 +17,12 @@ ActiveSupport::Notifications.subscribe("transition.statecraft") do |_name, _star
   )
 end
 
+# The failure payload names the record, the machine and the reason — it
+# carries no from/to/event keys: the transition never happened.
 ActiveSupport::Notifications.subscribe("transition_failed.statecraft") do |_name, _started, _finished, _id, payload|
   OperationEntry.create!(
     record_class: payload[:record_class],
     record_id: payload[:record_id].to_s,
-    from_state: payload[:from],
-    to_state: payload[:to],
-    event_name: payload[:event],
     outcome: "refused",
     reason: payload[:reason].to_s
   )
