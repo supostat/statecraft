@@ -263,8 +263,12 @@ end
 ```
 
 `seen:` rides all four surface forms and the helper verbs. A string token
-straight from params is fine — the pipeline normalizes it with `Integer()`,
-and garbage raises `ArgumentError` loudly. The honest limits: staleness
+straight from params is fine — the pipeline normalizes it with `Integer()`.
+The field comes back from the browser, so it is hostile input: a token that
+cannot be read at all — a tampered `seen=abc`, an array from `seen[]=1` —
+is refused as `StaleTransition` too, with `expected_version: nil` because
+nothing was compared. A broken or forged form never turns into a 500.
+The honest limits: staleness
 exists only where a token was given — without `seen:` a version mismatch
 is the ordinary `TransitionConflict`; the early deterministic check runs
 only under `lock: true`, where the reload holds the row's real version —
@@ -513,6 +517,11 @@ statecraft's CAS on the state column.
 Outside Rails, the same five steps work by hand — pair the runbook above
 with the reference schema in [Outside Rails](#outside-rails).
 
+Once the conversion has settled, one more `add_column` buys protection
+statesman never had: see [Stale transitions](#stale-transitions-versioning-against-aba)
+— the version column is a constant default, so adding it costs a
+metadata-only migration on PostgreSQL 11+.
+
 ## PII and erasure
 
 Metadata is the only place personal data can live — `from_state`, `to_state`
@@ -732,7 +741,7 @@ possibility-times-permission intersection:
 <!-- readme: preview-pattern -->
 ```erb
 <%= form_with url: preview_admin_order_path(@order), method: :post, local: true do %>
-  <input type="hidden" name="seen" value="<%= @order[:state_version] %>">
+  <input type="hidden" name="seen" value="<%= @order.state_version %>">
   <fieldset>
     <legend>Metadata for the next action</legend>
     <label>

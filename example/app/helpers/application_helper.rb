@@ -19,10 +19,16 @@ module ApplicationHelper
   def refused_actions(record)
     machine = record.class.statecraft_mounting.machine_class
     offered = record.offerable_events
-    machine.transitions_from(record[:state])
+    machine.transitions_from(current_state(record))
            .flat_map { |edge| edge[:events] }
            .select { |event| can?(event, record) && !offered.include?(event) }
            .map { |event| [event, record.refusals_for(event)] }
+  end
+
+  # The mounting knows which column holds the state — reading a literal
+  # :state would quietly assume the default of the column: option.
+  def current_state(record)
+    record[record.class.statecraft_mounting.column]
   end
 
   # Bypass is not an event, so it never appears in via: the button shows
@@ -30,7 +36,7 @@ module ApplicationHelper
   # edge from here.
   def bypass_cancel_available?(record)
     can?(:bypass_cancel, record) &&
-      OrderFlow.transitions_from(record[:state]).any? { |edge| edge[:to] == :cancelled }
+      OrderFlow.transitions_from(current_state(record)).any? { |edge| edge[:to] == :cancelled }
   end
 
   SHIPPING_STATUS = {
@@ -41,7 +47,8 @@ module ApplicationHelper
   }.freeze
 
   def shipping_status(shipment)
-    SHIPPING_STATUS.fetch(shipment[:state], shipment[:state])
+    state = current_state(shipment)
+    SHIPPING_STATUS.fetch(state, state)
   end
 
   def price(cents)

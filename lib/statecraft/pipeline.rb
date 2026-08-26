@@ -65,10 +65,12 @@ module Statecraft
 
       assert_single_column_primary_key
       @raw_seen = seen
-      @seen = normalize_seen(seen)
       metadata = Metadata.normalize(raw_metadata)
       started_at = Time.current
       begin
+        # Inside the rescue: an unreadable token is a refusal like any
+        # other and belongs in the failure telemetry.
+        @seen = normalize_seen(seen)
         edge, event, bypass = edge_resolver.call(current_state)
         assert_clean_when_locked(edge)
         frame = open_frame(edge, event)

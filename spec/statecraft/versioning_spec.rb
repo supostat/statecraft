@@ -105,9 +105,51 @@ RSpec.describe "versioning" do
       expect(order.fire!(:pay, seen: "0")).to be_a(OrderTransition)
     end
 
-    it "raises loudly on a garbage token" do
+    # The token comes from a form field: a tampered or broken form must not
+    # escape the gem's hierarchy into a 500.
+    it "refuses an unreadable token as staleness, not a bare ArgumentError" do
       order = Order.create!
-      expect { order.fire!(:pay, seen: "not-a-version") }.to raise_error(ArgumentError)
+
+      expect { order.fire!(:pay, seen: "not-a-version") }
+        .to raise_error(Statecraft::StaleTransition) do |error|
+          expect(error).to be_a(Statecraft::TransitionConflict)
+          expect(error.seen).to eq("not-a-version")
+          expect(error.expected_version).to be_nil
+          expect(error.message).to include("not a readable version")
+        end
+      expect(order.reload[:state]).to eq("pending")
+      expect(order[:state_version]).to eq(0)
+    end
+
+    it "refuses an array token — what seen[]=1 delivers through params" do
+      order = Order.create!
+
+      expect { order.fire!(:pay, seen: ["1"]) }
+        .to raise_error(Statecraft::StaleTransition) do |error|
+          expect(error.seen).to eq(["1"])
+          expect(error.expected_version).to be_nil
+        end
+    end
+
+    it "publishes the unreadable token as reason :stale" do
+      payloads = []
+      subscription = ActiveSupport::Notifications.subscribe("transition_failed.statecraft") do |*args|
+        payloads << args.last
+      end
+
+      order = Order.create!
+      begin
+        order.fire!(:pay, seen: "not-a-version")
+      rescue Statecraft::StaleTransition
+        nil
+      end
+
+      expect(payloads.size).to eq(1)
+      expect(payloads.first[:reason]).to eq(:stale)
+      expect(payloads.first[:expected_version]).to be_nil
+      expect(payloads.first[:seen]).to eq("not-a-version")
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscription)
     end
 
     it "refuses a stale token with StaleTransition carrying both fields" do

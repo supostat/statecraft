@@ -22,6 +22,10 @@ module Statecraft
         column
       end
 
+      # The token arrives from a form field, so it is hostile input: a
+      # tampered or broken form must not escape the gem's own hierarchy.
+      # An unreadable token IS an invalid snapshot — the same refusal a
+      # stale one gets, with no version to compare against.
       def normalize_seen(raw_seen)
         return nil if raw_seen.nil?
 
@@ -30,7 +34,13 @@ module Statecraft
                 "seen: requires versioning: true on the mounting of #{record.class.name}; " \
                 "add the option or drop the token"
         end
-        Integer(raw_seen)
+
+        begin
+          Integer(raw_seen)
+        rescue ArgumentError, TypeError
+          raise StaleTransition.new(record: record, expected_from: current_state,
+                                    expected_version: nil, seen: raw_seen)
+        end
       end
 
       # What the CAS requires the row's version to be: the caller's seen:

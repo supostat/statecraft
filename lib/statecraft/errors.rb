@@ -46,18 +46,25 @@ module Statecraft
     end
   end
 
-  # The refusal of a seen: token: the snapshot the caller acted on is no
-  # longer the row's version. A subclass of TransitionConflict, so existing
-  # rescues keep catching it; controllers map it to 409 specifically.
+  # The refusal of a seen: token: the snapshot the caller acted on is not
+  # the row's version — or could not be read at all, which is the same
+  # answer with nothing to compare (expected_version stays nil). A subclass
+  # of TransitionConflict, so existing rescues keep catching it;
+  # controllers map it to 409 specifically.
   class StaleTransition < TransitionConflict
     attr_reader :expected_version, :seen
 
     def initialize(record:, expected_from:, expected_version:, seen:)
       @expected_version = expected_version
       @seen = seen
+      reason =
+        if expected_version.nil?
+          "the token #{seen.inspect} is not a readable version"
+        else
+          "the caller saw version #{seen.inspect}, but the row has moved on"
+        end
       super(record: record, expected_from: expected_from,
-            message: "stale transition for #{record.class.name}##{record.id}: " \
-                     "the caller saw version #{seen.inspect}, but the row has moved on")
+            message: "stale transition for #{record.class.name}##{record.id}: #{reason}")
     end
   end
 
