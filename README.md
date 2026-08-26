@@ -260,6 +260,51 @@ belong to the application's presentation layer, not to the machine.
 A guard that reads metadata makes `may_*?` depend on the metadata you pass —
 pass the same metadata to `may_*?` that you will collect for `fire!`.
 
+## RSpec matchers
+
+One opt-in require gives your specs matchers over the whole introspection
+surface — RSpec never becomes a runtime dependency of the gem:
+
+<!-- illustrative -->
+```ruby
+# spec_helper.rb, after rspec itself is loaded
+require "statecraft/rspec"
+```
+
+<!-- illustrative -->
+```ruby
+# The record-level questions consult the guards, with the same metadata
+# your production call will carry:
+expect(order).to allow_event(:pay).with_metadata("amount" => 100)
+expect(order).to allow_transition_to(:cancelled).via(:cancel)
+expect(order).to allow_transition_to(:archived).directly
+expect(order).to have_transitioned_to(:paid)  # strictly log-based
+
+# The refusal with its reason — guard names come from refusals_for:
+expect(order).to refuse_event(:cancel).because_of(:customer_cancellable?)
+
+# The class-level pair answers the graph's shape; guards stay untouched:
+expect(OrderFlow).to have_edge(:pending, :cancelled).via(:cancel)
+expect(OrderFlow).to have_initial_state(:pending)
+
+# The transition itself: the state move AND the appended log row,
+# asserted in one expression around fire!/transition_to!:
+expect { order.fire!(:pay, metadata: { "amount" => 100 }) }
+  .to transition(order).from(:pending).to(:paid)
+      .via_event(:pay).with_metadata("amount" => 100)
+```
+
+A failing matcher explains itself with the same introspection the pipeline
+consults: the current state, the edges reachable from it, and the refusing
+guard with its layer. A non-bang call that returned `false` fails the
+`transition` matcher the same way; exceptions of the bang forms fly through
+like with `change` — assert refusals with `refuse_event` or `raise_error`,
+not with the block matcher.
+
+`because_of` carries the same honest limit as `refusals_for` underneath it:
+it names record-layer guards only. An input-reading `guard:` has no name
+there, and the failure message says so instead of guessing.
+
 ## Metadata
 
 Metadata is normalized on pipeline entry with a full JSON round-trip —
