@@ -27,6 +27,15 @@ RSpec.describe "gem packaging" do
     expect(specification.files).to include("LICENSE.txt", "README.md")
   end
 
+  # The example app pins the gem by path and CI installs it with a frozen
+  # lockfile, so a version bump that forgets `bundle lock` in example/ turns
+  # CI red long after the fact — this catches it in the same suite run.
+  it "keeps the example lockfile on the current gem version" do
+    lockfile = File.read(File.expand_path("../../example/Gemfile.lock", __dir__))
+
+    expect(lockfile).to include("statecraft (#{Statecraft::VERSION})")
+  end
+
   it "points at the project's public addresses" do
     expect(specification.homepage).to eq("https://supostat.github.io/statecraft/")
     expect(specification.metadata).to include(
