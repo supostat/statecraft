@@ -32,6 +32,7 @@ class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Mi
 
   def convert_parent_table
     add_column :<%= table_name %>, :state, :string
+    add_column :<%= table_name %>, :state_changed_at, :datetime
 
     # The current state is the to_state of the LAST transition by sort_key —
     # deliberately not most_recent, which statesman itself ships a repair
@@ -43,6 +44,16 @@ class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Mi
          ORDER BY t.sort_key DESC LIMIT 1),
         '<%= initial_state %>'
       )
+    SQL
+
+    # The mounting says changed_at: true, so the column must exist — and the
+    # conversion knows the honest value: the moment of the last recorded
+    # transition. Rows that never transitioned stay NULL, exactly like a
+    # freshly created record.
+    execute <<~SQL
+      UPDATE <%= table_name %> SET state_changed_at =
+        (SELECT MAX(t.created_at) FROM <%= log_table_name %> t
+         WHERE t.<%= foreign_key_column %> = <%= table_name %>.id)
     SQL
 
     change_column_default :<%= table_name %>, :state, "<%= initial_state %>"

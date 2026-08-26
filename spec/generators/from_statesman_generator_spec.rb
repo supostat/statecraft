@@ -63,6 +63,8 @@ RSpec.describe "statecraft:from_statesman generator" do
         migration_source = File.read(migration)
         expect(migration_source).to include("LAG(to_state) OVER")
         expect(migration_source).to include("ORDER BY t.sort_key DESC LIMIT 1")
+        expect(migration_source).to include("add_column :orders, :state_changed_at, :datetime")
+        expect(migration_source).to include("SET state_changed_at =")
         expect(migration_source).to include("COALESCE(prev.prev_state, 'pending')")
         expect(migration_source).to include("on_delete: :cascade")
         expect(migration_source).to include("state IN ('pending', 'paid', 'cancelled')")
