@@ -177,8 +177,12 @@ module Statecraft
       def define_verbs(graph)
         verbs = Module.new do
           graph.events.each_key do |event_name|
-            define_method("#{event_name}!") { |metadata: {}| fire!(event_name, metadata: metadata) }
-            define_method(event_name) { |metadata: {}| fire(event_name, metadata: metadata) }
+            define_method("#{event_name}!") do |metadata: {}, seen: nil|
+              fire!(event_name, metadata: metadata, seen: seen)
+            end
+            define_method(event_name) do |metadata: {}, seen: nil|
+              fire(event_name, metadata: metadata, seen: seen)
+            end
             define_method("may_#{event_name}?") { |metadata: {}| can_fire?(event_name, metadata: metadata) }
           end
         end

@@ -39,6 +39,25 @@ RSpec.describe "versioning" do
     Order.where(id: order.id).update_all(attributes)
   end
 
+  def define_versioned_order_with_helpers
+    stub_const("HelperFlow", Class.new do
+      include Statecraft::Machine
+
+      state :pending, initial: true
+      state :paid
+
+      event :pay, from: :pending, to: :paid
+      event :refund, from: :paid, to: :pending
+    end)
+    stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+    stub_const("OrderTransition", Class.new(ActiveRecord::Base) do
+      self.table_name = "order_transitions"
+
+      def readonly? = persisted?
+    end)
+    Order.state_machine(HelperFlow, versioning: true, helpers: true)
+  end
+
   describe "the increment" do
     it "moves the version with every transition and mirrors it in memory" do
       order = Order.create!
@@ -110,6 +129,14 @@ RSpec.describe "versioning" do
 
       expect { order.transition_to(:archived, seen: 0) }
         .to raise_error(Statecraft::StaleTransition)
+    end
+
+    it "forwards seen: through the helper verbs" do
+      define_versioned_order_with_helpers
+      order = Order.create!
+
+      expect(order.pay!(seen: 0)).to be_a(OrderTransition)
+      expect { order.refund(seen: 0) }.to raise_error(Statecraft::StaleTransition)
     end
 
     it "refuses seen: on a mounting without versioning, naming the fix" do
