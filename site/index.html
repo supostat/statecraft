@@ -307,12 +307,15 @@
        History is an append-only log with write-once metadata.
        Built for ActiveRecord; Rails is optional.</p>
     <ul class="badges">
-      <li>MIT</li><li>gem v0.3.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
+      <li>MIT</li><li>gem v0.5.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
     </ul>
     <p class="cta">
       <a class="btn btn-primary" href="#quick-start">Get started</a>
       <a class="btn btn-secondary" href="https://github.com/supostat/statecraft">GitHub</a>
     </p>
+    <p class="muted">Coming from statesman? One command converts your transitions table in
+       place — <a href="https://github.com/supostat/statecraft#migrating-from-statesman">the
+       migration recipe →</a></p>
 
     <div class="code-window">
       <div class="code-title"><span class="dots"><i></i><i></i><i></i></span>app/state_machines/order_flow.rb</div>
@@ -560,6 +563,10 @@ puts OrderFlow.to_mermaid       <span class="tok-c"># the shape as a Mermaid dia
         <p><code>offerable_events</code> is the graph filtered by the record layer — an input
            guard never hides the form its input arrives through — and
            <code>refusals_for</code> names the guard that said no.</p></div>
+      <div class="feature"><span class="tag">migration</span><h3>A door out of statesman</h3>
+        <p><code>rails g statecraft:from_statesman Order</code> converts the transitions table
+           you already have — history stays in place — through three production-safe
+           migrations: instant DDL, a batched backfill, then indexes built concurrently.</p></div>
       <div class="feature"><span class="tag">telemetry</span><h3>Conflict rates on a dashboard</h3>
         <p><code>transition.statecraft</code> and <code>transition_failed.statecraft</code>
            with the failure reason: contention becomes a metric, not a mystery.</p></div>
