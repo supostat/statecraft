@@ -1,4 +1,5 @@
 .vscode
+.DS_Store
 CLAUDE.md
 docs
 /Gemfile.lock
