@@ -351,38 +351,48 @@ bin/rails generate statecraft:from_statesman Order
 The generator reads the live statesman machine through reflection (pass the
 class as a second argument when it is not `OrderStateMachine`; point at the
 class that declares the DSL — statesman graphs are not inherited) and writes
-three things: the conversion migration, a machine skeleton, and the
-`state_machine` mounting line. Two things it honestly cannot write: statesman
-has no events, so every edge arrives as a bare `transition` for you to name,
-and guard bodies are anonymous blocks — each becomes a TODO comment carrying
-the original `file:line`.
+three conversion migrations, a machine skeleton, and the `state_machine`
+mounting line. Two things it honestly cannot write: statesman has no events,
+so every edge arrives as a bare `transition` for you to name, and guard
+bodies are anonymous blocks — each becomes a TODO comment carrying the
+original `file:line`.
 
-The migration converts in this order:
+Three migrations, because the obvious single one is a production incident:
+`add_column` takes an ACCESS EXCLUSIVE lock that PostgreSQL holds until the
+**end of the transaction**, and a full-table backfill inside that same
+transaction keeps both tables unreadable — even for SELECTs — for its whole
+duration. The conversion splits along the lock boundaries instead, and the
+runbook is five steps:
 
-1. The model gains its `state` column, backfilled from the **last transition
-   by `sort_key`** — deliberately not `most_recent`, which drifts out of sync
-   often enough that statesman ships a repair task for it. Rows with no
-   transitions get the initial state; a CHECK constraint pins the value set.
-2. The transitions table gains `from_state` (a `LAG` window along the
-   `sort_key` chain, the first hop starting from the initial state) and a
-   nullable `event` — imported history reads as direct transitions, which is
-   the honest description of what statesman recorded.
-3. A text `metadata` column becomes native json(b) in one indivisible move
-   with removing `serialize` from the model: neither library works in the
-   half-converted state, so the type change and the code change ship
-   together.
-4. The foreign key is re-created with `ON DELETE CASCADE` (statesman's
-   default one carries no action), statesman's unique indexes go, and the
-   `[foreign_key, id]` index that serves statecraft's history reads arrives.
-5. `sort_key`, `most_recent` and `updated_at` are dropped last — the first
-   two would break the log INSERT outright, being NOT NULL without defaults.
+1. **Run `_ddl`** any time: nullable columns only — on PostgreSQL 11+ its
+   lock lasts milliseconds.
+2. **Run `_backfill`** any time, even mid-day: batches over parent-id
+   ranges outside any DDL transaction, touching only rows still NULL. The
+   model's state comes from the **last transition by `sort_key`** —
+   deliberately not `most_recent`, which drifts often enough that statesman
+   ships a repair task for it — `state_changed_at` from that transition's
+   `created_at`, and `from_state` from a `LAG` window along the chain.
+3. **Switch the code**: port the skeleton, deploy statecraft in place of
+   statesman.
+4. **Catch up**: the backfill is idempotent (`WHERE ... IS NULL`), so run
+   its class once more to pick up rows statesman wrote between steps 2
+   and 3 — `bin/rails runner` with a `load` of the migration file and
+   `.new.up` does it without touching `schema_migrations`.
+5. **Run `_finalize`**: NOT NULL lands through the `NOT VALID` →
+   `VALIDATE CONSTRAINT` pair (readers never blocked), the `state` and
+   `[foreign_key, id]` indexes build `CONCURRENTLY`, the cascade FK is
+   validated the same way, and the statesman columns are dropped last.
+   Honest limit: a text `metadata` column is rewritten under a lock here —
+   unavoidable within this recipe; for very large tables the shadow-column
+   dance is the escape.
 
-The migration's header names two pre-flight checks on live data — that the
-id order agrees with the `sort_key` order (statecraft reads history by id),
-and that a text `metadata` column holds valid JSON in every row (rows written
-by raw SQL may not survive the cast). Run both before migrating.
+The `_ddl` migration's header names two pre-flight checks on live data —
+that the id order agrees with the `sort_key` order (statecraft reads history
+by id), and that a text `metadata` column holds valid JSON in every row
+(rows written by raw SQL may not survive the cast). Run both before
+starting.
 
-After the migration, finish by hand (the generator prints this list): drop
+After finalize, finish by hand (the generator prints this list): drop
 `Statesman::Adapters::ActiveRecordTransition` and the
 `after_destroy :update_most_recent` callback from the transition model — they
 read dropped columns — plus `ActiveRecordQueries` from the model and the
@@ -391,7 +401,7 @@ events in the skeleton. One guarantee moves rather than disappears: the
 race safety statesman derived from its unique `(parent, sort_key)` index is
 statecraft's CAS on the state column.
 
-Outside Rails, the same steps work by hand — pair the migration order above
+Outside Rails, the same five steps work by hand — pair the runbook above
 with the reference schema in [Outside Rails](#outside-rails).
 
 ## PII and erasure

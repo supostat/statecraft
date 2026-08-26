@@ -1,0 +1,28 @@
+# frozen_string_literal: true
+
+# Step 1 of 3: instant DDL. Adds the nullable columns and nothing else —
+# on PostgreSQL 11+ a nullable add_column without a default takes its
+# ACCESS EXCLUSIVE lock for milliseconds. The long work lives in the
+# batched backfill (step 2) and the finalize migration (step 3); run them
+# in that order, per the README's "Migrating from statesman" runbook.
+#
+# BEFORE STARTING THE CONVERSION — two checks on live data, both cheap:
+#
+# 1. statecraft reads history ordered by id, statesman ordered by sort_key.
+#    They almost always agree; prove it for your data (must return 0 rows):
+#
+#      SELECT t.<%= foreign_key_column %> FROM <%= log_table_name %> t
+#      JOIN <%= log_table_name %> later ON later.<%= foreign_key_column %> = t.<%= foreign_key_column %>
+#        AND later.sort_key > t.sort_key AND later.id < t.id LIMIT 1;
+#
+# 2. If your metadata column is text, every row must hold valid JSON (rows
+#    written by raw SQL may not) — the jsonb cast in step 3 dies on the
+#    first invalid one.
+class Convert<%= migration_slug.camelize %>TransitionsDdl < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  def change
+    add_column :<%= table_name %>, :state, :string
+    add_column :<%= table_name %>, :state_changed_at, :datetime
+    add_column :<%= log_table_name %>, :from_state, :string
+    add_column :<%= log_table_name %>, :event, :string
+  end
+end

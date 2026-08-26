@@ -1,0 +1,69 @@
+# frozen_string_literal: true
+
+# Step 2 of 3: the batched backfill, outside any DDL transaction. Batches
+# walk ranges of PARENT ids — both updates are partitioned by the parent,
+# so the LAG window never tears at a batch boundary — and every statement
+# touches only rows still NULL, which makes the whole migration idempotent:
+# rerun it any time to catch up with rows statesman wrote in between (the
+# runbook's catch-up step after switching the code).
+class Convert<%= migration_slug.camelize %>TransitionsBackfill < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  disable_ddl_transaction!
+
+  BATCH_SIZE = 10_000
+
+  def up
+    bounds = select_rows("SELECT MIN(id), MAX(id) FROM <%= table_name %>").first
+    return if bounds.nil? || bounds.first.nil?
+
+    first_id, last_id = bounds.map(&:to_i)
+    first_id.step(last_id, BATCH_SIZE) do |batch_start|
+      batch_end = batch_start + BATCH_SIZE - 1
+      backfill_parent_rows(batch_start, batch_end)
+      backfill_transition_rows(batch_start, batch_end)
+    end
+  end
+
+  def down
+    raise ActiveRecord::IrreversibleMigration
+  end
+
+  private
+
+  # The current state is the to_state of the LAST transition by sort_key —
+  # deliberately not most_recent, which statesman itself ships a repair rake
+  # task for; rows without transitions are in the initial state. The moment
+  # of the last transition fills state_changed_at; never-transitioned rows
+  # stay NULL, exactly like a freshly created record.
+  def backfill_parent_rows(batch_start, batch_end)
+    execute <<~SQL
+      UPDATE <%= table_name %> SET
+        state = COALESCE(
+          (SELECT t.to_state FROM <%= log_table_name %> t
+           WHERE t.<%= foreign_key_column %> = <%= table_name %>.id
+           ORDER BY t.sort_key DESC LIMIT 1),
+          '<%= initial_state %>'
+        ),
+        state_changed_at =
+          (SELECT MAX(t.created_at) FROM <%= log_table_name %> t
+           WHERE t.<%= foreign_key_column %> = <%= table_name %>.id)
+      WHERE <%= table_name %>.id BETWEEN #{batch_start} AND #{batch_end}
+        AND <%= table_name %>.state IS NULL
+    SQL
+  end
+
+  # from_state is the previous to_state along the sort_key chain; the
+  # chain's first hop starts from the initial state. Runs while sort_key is
+  # still alive — the finalize migration drops it, so backfill comes first.
+  def backfill_transition_rows(batch_start, batch_end)
+    execute <<~SQL
+      UPDATE <%= log_table_name %> SET from_state = COALESCE(prev.prev_state, '<%= initial_state %>')
+      FROM (SELECT id, LAG(to_state) OVER (
+              PARTITION BY <%= foreign_key_column %> ORDER BY sort_key
+            ) AS prev_state
+            FROM <%= log_table_name %>
+            WHERE <%= foreign_key_column %> BETWEEN #{batch_start} AND #{batch_end}) prev
+      WHERE prev.id = <%= log_table_name %>.id
+        AND <%= log_table_name %>.from_state IS NULL
+    SQL
+  end
+end

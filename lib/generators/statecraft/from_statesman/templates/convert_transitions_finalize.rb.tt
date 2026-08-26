@@ -1,0 +1,132 @@
+# frozen_string_literal: true
+
+# Step 3 of 3: finalize with short locks, after the backfill has caught up
+# and the code has switched to statecraft (statesman columns are dropped
+# here, so run this last). Every long validation goes through the
+# PostgreSQL NOT VALID -> VALIDATE pair, which never blocks readers;
+# indexes build CONCURRENTLY.
+class Convert<%= migration_slug.camelize %>TransitionsFinalize < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  disable_ddl_transaction!
+
+  def up
+    enforce_not_null(:<%= table_name %>, :state)
+    enforce_not_null(:<%= log_table_name %>, :from_state)
+    add_state_default_and_check
+    build_indexes
+    rebuild_foreign_key
+    convert_metadata_column
+    drop_statesman_columns
+  end
+
+  def down
+    raise ActiveRecord::IrreversibleMigration
+  end
+
+  private
+
+  # NOT NULL without a full-table lock: a NOT VALID check validates while
+  # readers and writers keep working; SET NOT NULL then reuses the
+  # validated constraint and the helper check is dropped.
+  def enforce_not_null(table, column)
+    if postgresql?
+      helper_name = "#{table}_#{column}_null_check"
+      execute "ALTER TABLE #{table} ADD CONSTRAINT #{helper_name} CHECK (#{column} IS NOT NULL) NOT VALID"
+      execute "ALTER TABLE #{table} VALIDATE CONSTRAINT #{helper_name}"
+      change_column_null table, column, false
+      execute "ALTER TABLE #{table} DROP CONSTRAINT #{helper_name}"
+    else
+      change_column_null table, column, false
+    end
+  end
+
+  def add_state_default_and_check
+    change_column_default :<%= table_name %>, :state, "<%= initial_state %>"
+
+    return unless connection.supports_check_constraints?
+
+    # add new states here when the machine grows
+    if postgresql?
+      add_check_constraint :<%= table_name %>, state_check_expression,
+                           name: "<%= table_name %>_state_check", validate: false
+      validate_check_constraint :<%= table_name %>, name: "<%= table_name %>_state_check"
+    else
+      add_check_constraint :<%= table_name %>, state_check_expression,
+                           name: "<%= table_name %>_state_check"
+    end
+  end
+
+  # The state index is the reference schema's promise (scopes and
+  # where(state:) read it); [fk, id] serves the history reads.
+  def build_indexes
+    if postgresql?
+      add_index :<%= table_name %>, :state, algorithm: :concurrently, if_not_exists: true
+      add_index :<%= log_table_name %>, %i[<%= foreign_key_column %> id],
+                algorithm: :concurrently, if_not_exists: true
+    else
+      add_index :<%= table_name %>, :state, if_not_exists: true
+      add_index :<%= log_table_name %>, %i[<%= foreign_key_column %> id], if_not_exists: true
+    end
+
+    remove_index :<%= log_table_name %>, column: %i[<%= foreign_key_column %> sort_key], if_exists: true
+    remove_index :<%= log_table_name %>, column: %i[<%= foreign_key_column %> most_recent], if_exists: true
+  end
+
+  # An audit without its subject is not an audit: the statecraft contract is
+  # ON DELETE CASCADE (statesman's default foreign key, when present,
+  # carries no action). If your foreign key column is NOT named
+  # <%= foreign_key_column %> (check the has_many on your model), rename it
+  # first — statecraft derives the name from the model class:
+  #   rename_column :<%= log_table_name %>, :your_column, :<%= foreign_key_column %>
+  def rebuild_foreign_key
+    if foreign_key_exists?(:<%= log_table_name %>, :<%= table_name %>)
+      remove_foreign_key :<%= log_table_name %>, :<%= table_name %>
+    end
+
+    if postgresql?
+      add_foreign_key :<%= log_table_name %>, :<%= table_name %>,
+                      column: :<%= foreign_key_column %>, on_delete: :cascade, validate: false
+      validate_foreign_key :<%= log_table_name %>, :<%= table_name %>
+    else
+      add_foreign_key :<%= log_table_name %>, :<%= table_name %>,
+                      column: :<%= foreign_key_column %>, on_delete: :cascade
+    end
+  end
+
+  # Statesman's default schema serializes metadata into a text column; the
+  # statecraft pipeline wants native json(b). Converting the type and
+  # removing `serialize :metadata` from the transition model are ONE move —
+  # neither library works in the half-converted state. Honest limit: the
+  # type change rewrites the table under a lock; for very large tables the
+  # shadow-column dance is the escape, outside this recipe.
+  def convert_metadata_column
+    metadata_type = connection.columns(:<%= log_table_name %>).find { |column| column.name == "metadata" }&.sql_type.to_s
+    return unless metadata_type.match?(/text|char/i)
+
+    if postgresql?
+      change_column_default :<%= log_table_name %>, :metadata, nil
+      execute "ALTER TABLE <%= log_table_name %> ALTER COLUMN metadata TYPE jsonb USING metadata::jsonb"
+      execute "UPDATE <%= log_table_name %> SET metadata = '{}'::jsonb WHERE metadata IS NULL"
+      change_column_default :<%= log_table_name %>, :metadata, {}
+      change_column_null :<%= log_table_name %>, :metadata, false
+    else
+      change_column :<%= log_table_name %>, :metadata, :json, null: false, default: {}
+    end
+  end
+
+  # sort_key and most_recent are NOT NULL without defaults — the first
+  # statecraft insert would die on them; updated_at is merely absent from
+  # the statecraft schema. Dropped last: the backfill needs sort_key alive.
+  def drop_statesman_columns
+    remove_column :<%= log_table_name %>, :sort_key
+    remove_column :<%= log_table_name %>, :most_recent if column_exists?(:<%= log_table_name %>, :most_recent)
+    remove_column :<%= log_table_name %>, :updated_at if column_exists?(:<%= log_table_name %>, :updated_at)
+  end
+
+  def state_check_expression
+    "state IN ('<%= initial_state %>'<% (states - [initial_state]).each do |state_name| %>, '<%= state_name %>'<% end %>)"
+  end
+
+  def postgresql?
+    connection.adapter_name.match?(/postg/i)
+  end
+end

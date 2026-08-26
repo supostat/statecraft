@@ -50,13 +50,24 @@ module Statecraft
         inject_into_class model_file, class_name, mounting_line
       end
 
-      def create_conversion_migration
-        migration_template "convert_transitions_migration.rb.tt",
-                           "#{migration_directory}/convert_#{migration_slug}_transitions_to_statecraft.rb"
+      # Three migrations, strong-migrations style: instant DDL, a batched
+      # backfill outside any DDL transaction, and a short-lock finalize.
+      # migration_template numbers them monotonically, so they run in order.
+      def create_conversion_migrations
+        migration_template "convert_transitions_ddl.rb.tt",
+                           "#{migration_directory}/convert_#{migration_slug}_transitions_ddl.rb"
+        migration_template "convert_transitions_backfill.rb.tt",
+                           "#{migration_directory}/convert_#{migration_slug}_transitions_backfill.rb"
+        migration_template "convert_transitions_finalize.rb.tt",
+                           "#{migration_directory}/convert_#{migration_slug}_transitions_finalize.rb"
       end
 
       def print_cleanup_instructions
-        say "\nAfter running the migration, finish the move by hand:", :green
+        say "\nThe conversion is three migrations — run them per the README runbook:", :green
+        say "  1. _ddl now (instant); 2. _backfill any time (batched, no long locks;"
+        say "     rerun it to catch up rows statesman wrote in between);"
+        say "  3. _finalize after switching the code to statecraft."
+        say "\nAfter finalize, finish the move by hand:", :green
         say "  * #{log_class_name}: drop `include Statesman::Adapters::ActiveRecordTransition` and"
         say "    the `after_destroy :update_most_recent` callback (they read dropped columns);"
         say "    consider adding `def readonly? = persisted?` — the pipeline inserts around it."

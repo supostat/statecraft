@@ -58,18 +58,40 @@ RSpec.describe "statecraft:from_statesman generator" do
         model = File.read(File.join(tmp, "app/models/order.rb"))
         expect(model).to include("state_machine OrderFlow, changed_at: true, helpers: true, scopes: true")
 
-        migration = Dir[File.join(tmp, "db/migrate/*_convert_order_transitions_to_statecraft.rb")].first
-        expect(migration).not_to be_nil
-        migration_source = File.read(migration)
-        expect(migration_source).to include("LAG(to_state) OVER")
-        expect(migration_source).to include("ORDER BY t.sort_key DESC LIMIT 1")
-        expect(migration_source).to include("add_column :orders, :state_changed_at, :datetime")
-        expect(migration_source).to include("SET state_changed_at =")
-        expect(migration_source).to include("COALESCE(prev.prev_state, 'pending')")
-        expect(migration_source).to include("on_delete: :cascade")
-        expect(migration_source).to include("state IN ('pending', 'paid', 'cancelled')")
-        expect(migration_source).to include("remove_column :order_transitions, :sort_key")
-        expect(migration_source).to include("add_index :order_transitions, %i[order_id id]")
+        ddl, backfill, finalize = %w[ddl backfill finalize].map do |step|
+          Dir[File.join(tmp, "db/migrate/*_convert_order_transitions_#{step}.rb")].first
+        end
+        expect([ddl, backfill, finalize]).to all(be_a(String))
+
+        timestamps = [ddl, backfill, finalize].map { |path| File.basename(path).to_i }
+        expect(timestamps).to eq(timestamps.sort)
+        expect(timestamps.uniq.size).to eq(3)
+
+        ddl_source = File.read(ddl)
+        expect(ddl_source).to include("add_column :orders, :state, :string")
+        expect(ddl_source).to include("add_column :orders, :state_changed_at, :datetime")
+        expect(ddl_source).to include("later.sort_key > t.sort_key AND later.id < t.id")
+
+        backfill_source = File.read(backfill)
+        expect(backfill_source).to include("disable_ddl_transaction!")
+        expect(backfill_source).to include("BATCH_SIZE = 10_000")
+        expect(backfill_source).to include(".id BETWEEN ")
+        expect(backfill_source).to include("AND orders.state IS NULL")
+        expect(backfill_source).to include("AND order_transitions.from_state IS NULL")
+        expect(backfill_source).to include("LAG(to_state) OVER")
+        expect(backfill_source).to include("ORDER BY t.sort_key DESC LIMIT 1")
+        expect(backfill_source).to include("state_changed_at =")
+        expect(backfill_source).to include("COALESCE(prev.prev_state, 'pending')")
+
+        finalize_source = File.read(finalize)
+        expect(finalize_source).to include("disable_ddl_transaction!")
+        expect(finalize_source).to include("algorithm: :concurrently")
+        expect(finalize_source).to include("add_index :orders, :state")
+        expect(finalize_source).to include("validate_check_constraint")
+        expect(finalize_source).to include("validate_foreign_key")
+        expect(finalize_source).to include("on_delete: :cascade")
+        expect(finalize_source).to include("state IN ('pending', 'paid', 'cancelled')")
+        expect(finalize_source).to include("remove_column :order_transitions, :sort_key")
       end
     end
 
