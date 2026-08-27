@@ -307,7 +307,7 @@
        History is an append-only log with write-once metadata.
        Built for ActiveRecord; Rails is optional.</p>
     <ul class="badges">
-      <li>MIT</li><li>gem v0.5.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
+      <li>MIT</li><li>gem v0.7.1</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
     </ul>
     <p class="cta">
       <a class="btn btn-primary" href="#quick-start">Get started</a>
@@ -567,6 +567,16 @@ puts OrderFlow.to_mermaid       <span class="tok-c"># the shape as a Mermaid dia
         <p><code>rails g statecraft:from_statesman Order</code> converts the transitions table
            you already have — history stays in place — through three production-safe
            migrations: instant DDL, a batched backfill, then indexes built concurrently.</p></div>
+      <div class="feature"><span class="tag">rspec</span><h3>Matchers that explain the refusal</h3>
+        <p>One <code>require "statecraft/rspec"</code> and specs read the machine:
+           <code>allow_event</code>, <code>refuse_event(:cancel).because_of(:guard)</code>,
+           and a block matcher asserting the state move and the appended log row at once.
+           A red spec prints the state, the reachable edges and the guard that said no.</p></div>
+      <div class="feature"><span class="tag">versioning</span><h3>Stale views refused, not applied</h3>
+        <p><code>versioning: true</code> makes the CAS compare state <em>and</em> version, so a
+           state that went away and came back no longer passes for the one the page rendered.
+           Send the rendered token as <code>seen:</code> and a late click raises
+           <code>StaleTransition</code> — your 409 — instead of quietly succeeding.</p></div>
       <div class="feature"><span class="tag">telemetry</span><h3>Conflict rates on a dashboard</h3>
         <p><code>transition.statecraft</code> and <code>transition_failed.statecraft</code>
            with the failure reason: contention becomes a metric, not a mystery.</p></div>
