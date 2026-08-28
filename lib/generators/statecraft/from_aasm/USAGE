@@ -1,0 +1,34 @@
+Description:
+    Migrates a model off aasm. aasm already keeps the current state in a
+    column, so nothing is backfilled: the conversion adds the append-only
+    history aasm never had, indexes the existing column and generates a
+    machine skeleton from the live aasm reflection.
+
+    Copied over: the states, the initial state, the real event names (unlike
+    statesman, aasm has them) and the state column, which becomes the
+    mounting's `column:`. Symbol guards (guard:/if:/unless:) come over as
+    record_guard: with a generated one-line delegate — aasm calls a guard on
+    the record, and statecraft resolves a guard symbol on the machine.
+    Lambda guards carry their own closure and cannot be moved: each becomes
+    a TODO comment with its source location.
+
+    The second argument names an aasm machine when the model declares
+    several (`aasm(:shipment)`); without it the unnamed machine is read.
+    An event that branches from one state (aasm picks the first transition
+    whose guard passes) is refused: statecraft makes an event a partial
+    function, so split it into two named events in aasm first.
+
+Example:
+    bin/rails generate statecraft:from_aasm Order
+
+    Creates (when missing) and edits:
+        app/state_machines/application_machine.rb
+        app/state_machines/order_flow.rb    (skeleton: states, events, guards)
+        app/models/order.rb                 (state_machine mounting line)
+        db/migrate/XXX_create_order_transitions.rb
+
+    The migration creates the log table and indexes the state column; the
+    column is otherwise left alone, with the NOT NULL / default / CHECK
+    recipe in its header. After running it, follow the printed cleanup list:
+    drop `include AASM` and the aasm block, and replace aasm's state
+    predicates (`order.paid?`) with `in_state?(:paid)` or the scope.

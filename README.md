@@ -575,6 +575,52 @@ statesman never had: see [Stale transitions](#stale-transitions-versioning-again
 — the version column is a constant default, so adding it costs a
 metadata-only migration on PostgreSQL 11+.
 
+## Migrating from aasm
+
+aasm already keeps the current state in a column, so this move is the
+opposite shape of the statesman one: nothing is backfilled, and the
+conversion adds the history aasm never had.
+
+```sh
+bin/rails generate statecraft:from_aasm Order
+```
+
+The generator reads the live aasm machine off the model (pass a second
+argument to name one machine of a model that declares several) and writes
+the machine skeleton, the log-table migration and the mounting line. More
+survives the trip than from statesman: aasm has real event names, and its
+state column arrives as the mounting's `column:`.
+
+Guards come over by nature. An aasm guard judges the record and never sees
+what the caller submitted, which is exactly statecraft's `record_guard:` —
+so a symbol `guard:`/`if:` becomes a `record_guard:` plus a generated
+one-line delegate (`def payable?(record) = record.payable?`, because a
+guard symbol resolves on the machine here, not on the record), and
+`unless: :locked?` becomes a negating delegate. A lambda guard carries its
+own closure and cannot be moved: it arrives as a TODO with its `file:line`.
+
+One graph shape is refused rather than guessed. aasm lets one event branch
+from a single state and picks the first transition whose guard passes;
+statecraft makes an event a partial function, so `from` is unique within an
+event. The generator stops, names the branching events, and asks you to
+split them in aasm first — the `pay` / `fail_payment` pattern. Naming the
+halves is a domain decision, and a bad name would outlive the migration.
+
+The migration creates the log table and adds an index on the existing state
+column. It deliberately does **not** tighten that column: `NOT NULL`, a
+default and a `CHECK` on a live table mean long locks and an explosion on
+any legacy row outside the state list. The recipe for doing it later, in
+the `NOT VALID` → `VALIDATE CONSTRAINT` style, sits in the migration's own
+header.
+
+Then finish by hand (the generator prints the list): drop `include AASM`
+and the `aasm do ... end` block. Event calls keep their names under
+`helpers: true`, but their semantics sharpen — a lost race now raises
+`TransitionConflict` where aasm quietly answered `false` or, without an
+explicit lock, silently overwrote the column. aasm's state predicates
+(`order.paid?`) are not generated: use `in_state?(:paid)` or the `paid`
+scope.
+
 ## PII and erasure
 
 Metadata is the only place personal data can live — `from_state`, `to_state`

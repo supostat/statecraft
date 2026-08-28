@@ -18,9 +18,13 @@ RSpec.describe "gem packaging" do
     expect(specification.files).to include(*Dir["lib/**/*.rb"])
   end
 
+  # Globbed, not listed: a new generator must not be able to ship without the
+  # `rails g` description its siblings have.
   it "ships every generator USAGE" do
-    expect(specification.files).to include("lib/generators/statecraft/machine/USAGE",
-                                           "lib/generators/statecraft/from_statesman/USAGE")
+    usages = Dir["lib/generators/**/USAGE"]
+
+    expect(usages.size).to be >= 3
+    expect(specification.files).to include(*usages)
   end
 
   it "ships the license and the readme" do

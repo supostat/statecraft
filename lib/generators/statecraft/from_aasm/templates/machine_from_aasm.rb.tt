@@ -1,0 +1,35 @@
+# frozen_string_literal: true
+
+# Skeleton generated from <%= class_name %>'s <%= machine_label %>: the graph and
+# the event names are copied, the semantics are yours to port.
+#
+# - aasm guards judge the record and see no input, so every symbol guard came
+#   over as record_guard: with a one-line delegate below. A guard that reads
+#   what the caller submits belongs on guard: (arity 2) instead.
+# - lambda guards carry their own closure and cannot be moved; each is a TODO
+#   with its original location.
+class <%= class_name %>Flow < ApplicationMachine
+<% states.each do |state_name| -%>
+  state :<%= state_name %><%= state_name == initial_state ? ", initial: true" : "" %>
+<% end -%>
+
+<% events.each do |event| -%>
+  event :<%= event[:name] %>, from: :<%= event[:from] %>, to: :<%= event[:to] %><%= event[:guard] ? ", record_guard: :#{event[:guard][:method_name]}" : "" %>
+<% end -%>
+<% unless guard_todos.empty? -%>
+
+<% guard_todos.each do |note| -%>
+  # TODO(guard): <%= note %>
+<% end -%>
+<% end -%>
+<% unless guard_delegates.empty? -%>
+
+  private
+
+  # The machine keeps the registry "event -> predicate" and delegates the
+  # domain facts to the record, exactly where aasm called them.
+<% guard_delegates.each do |guard| -%>
+  def <%= guard[:method_name] %>(record) = <%= guard[:negated] ? "!record.#{guard[:source]}" : "record.#{guard[:source]}" %>
+<% end -%>
+<% end -%>
+end

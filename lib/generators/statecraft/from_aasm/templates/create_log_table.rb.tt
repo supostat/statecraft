@@ -1,0 +1,40 @@
+# frozen_string_literal: true
+
+# aasm kept the state in <%= table_name %>.<%= state_column %> and kept no history at
+# all, so this migration adds only what the gem needs: the append-only log and
+# an index on the column the scopes will read.
+#
+# The column itself is deliberately left as aasm made it. To tighten it later
+# without blocking writes on a live table:
+#   ALTER TABLE <%= table_name %> ALTER COLUMN <%= state_column %> SET DEFAULT '<%= initial_state %>';
+#   -- backfill NULLs, then --
+#   ALTER TABLE <%= table_name %> ALTER COLUMN <%= state_column %> SET NOT NULL;
+#   ALTER TABLE <%= table_name %> ADD CONSTRAINT <%= table_name %>_<%= state_column %>_check
+#     CHECK (<%= state_column %> IN (<%= states.map { |state| "'#{state}'" }.join(", ") %>)) NOT VALID;
+#   -- clean the data --
+#   ALTER TABLE <%= table_name %> VALIDATE CONSTRAINT <%= table_name %>_<%= state_column %>_check;
+class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  def change
+    create_table :<%= log_table_name.pluralize %> do |t|
+      t.references :<%= file_name %>,
+                   null: false, index: false,
+                   foreign_key: { to_table: :<%= table_name %>, on_delete: :cascade }
+      t.string :from_state, null: false
+      t.string :to_state, null: false
+      t.string :event
+      t.column :metadata, metadata_column_type, null: false, default: {}
+      t.datetime :created_at, null: false
+      t.index %i[<%= foreign_key_column %> id]
+    end
+
+    add_index :<%= table_name %>, :<%= state_column %> unless index_exists?(:<%= table_name %>, :<%= state_column %>)
+  end
+
+  private
+
+  # jsonb where the database has it, json elsewhere: the adapter is known
+  # only when the migration actually runs, never at generation time.
+  def metadata_column_type
+    connection.adapter_name.match?(/postg/i) ? :jsonb : :json
+  end
+end
