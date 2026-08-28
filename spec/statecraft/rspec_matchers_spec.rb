@@ -259,4 +259,71 @@ RSpec.describe "statecraft/rspec matchers" do
       expect { order.fire(:pay) }.not_to transition(order).to(:paid)
     end
   end
+
+  describe "versioning" do
+    def define_versioned_order
+      stub_const("VersionedFlow", Class.new do
+        include Statecraft::Machine
+
+        state :pending, initial: true
+        state :paid
+
+        event :pay, from: :pending, to: :paid
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      stub_const("OrderTransition", Class.new(ActiveRecord::Base) do
+        self.table_name = "order_transitions"
+
+        def readonly? = persisted?
+      end)
+      Order.state_machine(VersionedFlow, versioning: true)
+    end
+
+    it "folds the version increment into the transition matcher" do
+      define_versioned_order
+      order = Order.create!
+      expect { order.fire!(:pay, seen: order[:state_version]) }
+        .to transition(order).from(:pending).to(:paid).via_event(:pay)
+      expect(order[:state_version]).to eq(1)
+    end
+
+    it "names a version that did not move together with the state" do
+      define_versioned_order
+      order = Order.create!
+      failing = lambda do
+        expect do
+          order.fire!(:pay)
+          Order.where(id: order.id).update_all(state_version: 7)
+          order.reload
+        end.to transition(order).to(:paid)
+      end
+      expect_failure(failing) do |message|
+        expect(message).to include("the state_version column went from 0 to 7, expected 1")
+      end
+    end
+
+    it "prints the version in the standing of every message" do
+      define_versioned_order
+      order = Order.create!
+      expect_failure(-> { expect(order).to allow_event(:refund) }) do |message|
+        expect(message).to include("Order in state :pending (state_version 0)")
+      end
+    end
+
+    it "stays silent about versions on an unversioned mounting" do
+      order = Order.create!(status: "locked")
+      expect_failure(-> { expect(order).to allow_event(:cancel) }) do |message|
+        expect(message).not_to include("state_version")
+      end
+    end
+
+    it "lets a stale seen: token's StaleTransition fly through" do
+      define_versioned_order
+      order = Order.create!
+      Order.where(id: order.id).update_all(state_version: 3)
+      expect do
+        expect { order.fire!(:pay, seen: 0) }.to transition(order).to(:paid)
+      end.to raise_error(Statecraft::StaleTransition)
+    end
+  end
 end

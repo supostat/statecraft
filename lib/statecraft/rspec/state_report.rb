@@ -14,7 +14,12 @@ module Statecraft
       end
 
       def standing(record)
-        "#{record.class.name} in state #{current_state(record).inspect}"
+        "#{record.class.name} in state #{current_state(record).inspect}#{version_standing(record)}"
+      end
+
+      def version_standing(record)
+        column = record.class.statecraft_mounting.version_column
+        column ? " (#{column} #{record[column]})" : ""
       end
 
       def machine(record)

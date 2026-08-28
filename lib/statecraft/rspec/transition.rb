@@ -7,7 +7,8 @@ module Statecraft
     #
     # The transition through the eyes of a test: the state column moved to
     # the target AND exactly one log row was appended with the matching
-    # from/to/event/metadata. A non-bang call that returned false leaves
+    # from/to/event/metadata — and under versioning: the version column
+    # incremented together with the state. A non-bang call that returned false leaves
     # both untouched — the matcher fails and explains why, from the same
     # introspection the pipeline consulted. Exceptions of the bang forms
     # fly through, like with the change matcher: refusals are asserted
@@ -45,10 +46,13 @@ module Statecraft
       def matches?(block)
         raise ArgumentError, "transition(record).to(:state) — the .to target is required" unless @to_state
 
+        @version_column = @record.class.statecraft_mounting.version_column
         @before_state = StateReport.current_state(@record)
+        @before_version = @record[@version_column] if @version_column
         appended_before = @record.history.count
         block.call
         @after_state = StateReport.current_state(@record)
+        @after_version = @record[@version_column] if @version_column
         @appended = @record.history.offset(appended_before).to_a
         collect_failures
         @failures.empty?
@@ -84,6 +88,15 @@ module Statecraft
           @failures << "the record ended in #{@after_state.inspect}, not #{@to_state.inspect}"
         end
         collect_row_mismatches(@appended.last)
+        collect_version_mismatch
+      end
+
+      def collect_version_mismatch
+        return unless @version_column
+        return if @after_version == @before_version + 1
+
+        @failures << "the #{@version_column} column went from #{@before_version} to #{@after_version}, " \
+                     "expected #{@before_version + 1}: a versioned transition increments the version with the state"
       end
 
       def collect_row_mismatches(row)

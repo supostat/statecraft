@@ -373,6 +373,20 @@ not with the block matcher.
 it names record-layer guards only. An input-reading `guard:` has no name
 there, and the failure message says so instead of guessing.
 
+Under [`versioning:`](#stale-transitions-versioning-against-aba) the block
+matcher folds the version into the same assertion — a matching transition
+must also have incremented the version column — and every failure message
+prints the record's standing with its version
+(`Order in state :pending (state_version 3)`). Staleness stays an
+exception, exactly as in production: assert the refusal of a stale token
+with `raise_error`, not with a prediction matcher —
+
+<!-- illustrative -->
+```ruby
+expect { order.cancel!(seen: stale_token) }
+  .to raise_error(Statecraft::StaleTransition)
+```
+
 ## Metadata
 
 Metadata is normalized on pipeline entry with a full JSON round-trip —
