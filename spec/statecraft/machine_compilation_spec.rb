@@ -359,4 +359,109 @@ RSpec.describe "machine compilation" do
       expect(edge.event_record_guards[:go]).to be_frozen
     end
   end
+
+  describe "input guards" do
+    it "compiles into the full guard list after record and plain guards" do
+      seen = ->(_record, metadata) { metadata.key?("token") }
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, record_guard: :ready?, guard: :plain?, input_guard: seen
+
+        def ready?(record) = record
+        def plain?(_record, _metadata) = true
+      end
+
+      edge = flow.compiled_graph.edges[%i[a b]]
+      expect(edge.event_guards[:go]).to eq([:ready?, :plain?, seen])
+      expect(edge.event_input_guards[:go]).to eq([seen])
+      expect(edge.event_input_guards).to be_frozen
+    end
+
+    it "requires arity 2 from a symbol input guard" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, input_guard: :record_only?
+
+        def record_only?(record) = record
+      end
+
+      expect { flow.finalize! }.to raise_error(
+        Statecraft::CompilationError, /input_guard :record_only\? must take the record and the metadata/
+      )
+    end
+
+    it "requires arity 2 from a callable input guard" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        transition from: :a, to: :b, input_guard: ->(_record) { true }
+      end
+
+      expect { flow.finalize! }.to raise_error(
+        Statecraft::CompilationError, /input_guard the callable must take the record and the metadata/
+      )
+    end
+
+    it "resolves symbol input guards like every other handler" do
+      flow = machine_class do
+        state :a, initial: true
+        state :b
+        event :go, from: :a, to: :b, input_guard: :ghost?
+      end
+
+      expect { flow.finalize! }.to raise_error(Statecraft::CompilationError, /:ghost\? is not defined/)
+    end
+  end
+
+  describe "strict!" do
+    it "refuses a state unreachable from the initial one" do
+      flow = machine_class do
+        strict!
+        state :a, initial: true
+        state :b
+        state :orphan
+        transition from: :a, to: :b
+      end
+
+      expect { flow.finalize! }.to raise_error(
+        Statecraft::CompilationError, /strict!: unreachable from the initial :a: :orphan/
+      )
+    end
+
+    it "keeps the unreachable state legal without strict!" do
+      flow = machine_class do
+        state :a, initial: true
+        state :orphan
+        transition from: :a, to: :a
+      end
+
+      expect(flow.states).to eq(%i[a orphan])
+    end
+
+    it "keeps dead ends legal under strict! — terminal states are the norm" do
+      flow = machine_class do
+        strict!
+        state :a, initial: true
+        state :terminal
+        transition from: :a, to: :terminal
+      end
+
+      expect(flow.states).to eq(%i[a terminal])
+    end
+
+    it "walks chains, not only direct edges from the initial state" do
+      flow = machine_class do
+        strict!
+        state :a, initial: true
+        state :b
+        state :c
+        transition from: :a, to: :b
+        transition from: :b, to: :c
+      end
+
+      expect(flow.states).to eq(%i[a b c])
+    end
+  end
 end

@@ -11,7 +11,7 @@ module Statecraft
     Availability = Struct.new(:to, :via, keyword_init: true)
     Refusal = Struct.new(:event, :guard, :layer, keyword_init: true)
 
-    def can_fire?(event_name, metadata: {})
+    def can_fire?(event_name, metadata: Metadata::OMITTED)
       graph = statecraft_graph
       branches = graph.events[event_name.to_sym]
       return false unless branches
@@ -19,24 +19,32 @@ module Statecraft
       edge = branches[statecraft_current_state]
       return false unless edge
 
-      statecraft_guards_pass?(edge, event_name.to_sym, Metadata.normalize(metadata))
+      normalized = statecraft_question_metadata(metadata, [[edge, event_name.to_sym]],
+                                                question: "can_fire?(#{event_name.inspect})")
+      statecraft_guards_pass?(edge, event_name.to_sym, normalized)
     end
 
-    def available_events(metadata: {})
-      normalized = Metadata.normalize(metadata)
-      statecraft_graph.events.filter_map do |event_name, branches|
+    def available_events(metadata: Metadata::OMITTED)
+      consulted = statecraft_graph.events.filter_map do |event_name, branches|
         edge = branches[statecraft_current_state]
-        next unless edge
-
+        [edge, event_name] if edge
+      end
+      normalized = statecraft_question_metadata(metadata, consulted, question: "available_events")
+      consulted.filter_map do |edge, event_name|
         event_name if statecraft_guards_pass?(edge, event_name, normalized)
       end
     end
 
-    def available_transitions(metadata: {})
-      normalized = Metadata.normalize(metadata)
-      statecraft_graph.edges.filter_map do |(from, _to), edge|
-        next unless from == statecraft_current_state
-
+    def available_transitions(metadata: Metadata::OMITTED)
+      outgoing = statecraft_graph.edges.filter_map do |(from, _to), edge|
+        edge if from == statecraft_current_state
+      end
+      consulted = outgoing.flat_map do |edge|
+        pairs = edge.event_names.map { |event_name| [edge, event_name] }
+        statecraft_direct_legal?(edge) ? pairs + [[edge, nil]] : pairs
+      end
+      normalized = statecraft_question_metadata(metadata, consulted, question: "available_transitions")
+      outgoing.filter_map do |edge|
         via = statecraft_passable_via(edge, normalized)
         Availability.new(to: edge.to, via: via) unless via.empty?
       end
@@ -72,6 +80,23 @@ module Statecraft
     end
 
     private
+
+    # The single funnel for a question's metadata. Omitted with no input
+    # guard on the consulted path degrades to an empty hash; omitted with
+    # one raises MetadataRequired — the guard declared that its answer
+    # without input would be a false "no". An explicit hash always passes.
+    def statecraft_question_metadata(metadata, consulted_pairs, question:)
+      return Metadata.normalize(metadata) unless metadata.equal?(Metadata::OMITTED)
+
+      input_guards = consulted_pairs.flat_map { |edge, event_name| statecraft_input_guards(edge, event_name) }
+      return Metadata.normalize({}) if input_guards.empty?
+
+      raise MetadataRequired.new(record: self, question: question, guards: input_guards.uniq)
+    end
+
+    def statecraft_input_guards(edge, event_name)
+      edge.edge_input_guards + (event_name ? edge.event_input_guards.fetch(event_name, []) : [])
+    end
 
     def statecraft_record_refusals(edge, event_name)
       machine_instance = self.class.statecraft_mounting.machine_class.new

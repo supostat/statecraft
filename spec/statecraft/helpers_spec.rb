@@ -60,4 +60,26 @@ RSpec.describe "verb helpers" do
     expect(order).not_to respond_to(:may_pay?)
     expect(order.can_fire?(:pay, metadata: { amount: 5 })).to be(true)
   end
+
+  it "forwards an omitted metadata from may_ so an input guard refuses the bare question" do
+    stub_const("InputFlow", Class.new do
+      include Statecraft::Machine
+
+      state :pending, initial: true
+      state :paid
+      event :pay, from: :pending, to: :paid, input_guard: ->(_record, metadata) { metadata.key?("amount") }
+    end)
+    stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+    stub_const("OrderTransition", Class.new(ActiveRecord::Base) do
+      self.table_name = "order_transitions"
+
+      def readonly? = persisted?
+    end)
+    Order.state_machine(InputFlow, helpers: true)
+    order = Order.create!
+
+    expect { order.may_pay? }.to raise_error(Statecraft::MetadataRequired)
+    expect(order.may_pay?(metadata: {})).to be(false)
+    expect(order.may_pay?(metadata: { amount: 5 })).to be(true)
+  end
 end

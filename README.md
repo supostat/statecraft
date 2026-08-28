@@ -145,6 +145,16 @@ A good `record_guard:` is a one-line delegation to a domain predicate on the
 model (`def customer_cancellable?(record) = record.customer_cancellable?`):
 the machine keeps the registry "event → predicate", the model keeps the fact.
 
+The third nature is `input_guard:` — a guard declaring that its answer
+*without* the input would be a false "no". Its handler must take exactly
+`(record, metadata)` (the compiler refuses any other arity), execution runs
+it after the record and plain layers, and the question surface honors the
+declaration: a `can_fire?` / `may_*?` / `available_*` asked with metadata
+omitted entirely raises `Statecraft::MetadataRequired` naming the guard,
+instead of feeding it an empty hash and predicting a refusal that the real
+call would not hit. An explicit `metadata: {}` states "my input is empty"
+and is always a legal question.
+
 Calling `transition_to!` directly over an edge that carries event guards is
 refused — the guards would be silently skipped. The escape hatch is explicit:
 `transition_to!(:paid, bypass_events: true)` skips event guards (edge guards
@@ -326,7 +336,36 @@ or a missing branch. It carries names, never words: human-readable reasons
 belong to the application's presentation layer, not to the machine.
 
 A guard that reads metadata makes `may_*?` depend on the metadata you pass —
-pass the same metadata to `may_*?` that you will collect for `fire!`.
+pass the same metadata to `may_*?` that you will collect for `fire!`. Mark
+such a guard `input_guard:` and the machine holds you to it: a question
+asked without any `metadata:` raises `Statecraft::MetadataRequired` with
+the guard's name instead of answering a false "no" (an explicit
+`metadata: {}` stays legal — it states the input is genuinely empty). A
+plain `guard:` keeps the old behavior: a bare question consults it with an
+empty hash.
+
+## Strict mode
+
+By default an unreachable state compiles silently — the column is written
+by more than the gem (legacy rows, the console, external systems), so a
+state without inbound edges is not necessarily a mistake. A machine that
+claims its graph is closed opts in:
+
+<!-- illustrative -->
+```ruby
+class OrderFlow < ApplicationMachine
+  strict!
+
+  state :pending, initial: true
+  # every state below must now be reachable from :pending through edges
+end
+```
+
+With `strict!` compilation additionally requires every declared state to be
+reachable from the initial one, walking edges only — guards are not
+consulted, exactly like `transitions_from`. Dead ends stay legal in strict
+mode too: terminal states are the norm, and an accidental one is surfaced
+by the first test as `InvalidTransition` with the list of allowed targets.
 
 ## RSpec matchers
 
@@ -635,9 +674,10 @@ class OrderFlow
   # event and the bypass path all share pending -> cancelled — the log
   # records HOW, not only WHAT. The cancel guards split by nature: the
   # record layer judges the order (and the offering may ask it), the input
-  # layer judges what the operator typed (only fire! and the panel see it).
+  # layer judges what the operator typed — and is marked input_guard:, so a
+  # question asked without metadata raises instead of predicting a false no.
   event :cancel, from: :pending, to: :cancelled,
-        record_guard: :customer_cancellable?, guard: :reason_present?
+        record_guard: :customer_cancellable?, input_guard: :reason_present?
   event :admin_override, from: :pending, to: :cancelled
 
   private

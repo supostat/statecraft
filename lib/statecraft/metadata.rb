@@ -7,6 +7,11 @@ module Statecraft
   # strings, and anything that JSON cannot represent fails instantly at the
   # pipeline entrance instead of inside the transaction.
   module Metadata
+    # The question surface's default: distinguishes "asked without metadata"
+    # from an explicit empty hash, so a question that would consult an
+    # input_guard can refuse loudly instead of answering from a void.
+    OMITTED = Object.new.freeze
+
     def self.normalize(raw_metadata)
       deep_freeze(round_trip(raw_metadata))
     end

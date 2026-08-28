@@ -16,9 +16,10 @@ class OrderFlow
   # event and the bypass path all share pending -> cancelled — the log
   # records HOW, not only WHAT. The cancel guards split by nature: the
   # record layer judges the order (and the offering may ask it), the input
-  # layer judges what the operator typed (only fire! and the panel see it).
+  # layer judges what the operator typed — and is marked input_guard:, so a
+  # question asked without metadata raises instead of predicting a false no.
   event :cancel, from: :pending, to: :cancelled,
-        record_guard: :customer_cancellable?, guard: :reason_present?
+        record_guard: :customer_cancellable?, input_guard: :reason_present?
   event :admin_override, from: :pending, to: :cancelled
 
   private

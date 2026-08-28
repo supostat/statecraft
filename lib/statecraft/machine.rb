@@ -7,12 +7,15 @@ module Statecraft
   # Guard and callback symbols resolve to instance methods of the machine
   # class; callables are honored with a plain `call` and arity dispatch.
   module Machine
-    # edge_guards / event_guards carry the FULL lists of both layers in
-    # record-then-input order — execution and the prediction run them as one
+    # edge_guards / event_guards carry the FULL lists of all layers in
+    # record-plain-input order — execution and the prediction run them as one
     # sequence. The parallel *_record_guards fields hold only the record
-    # layer; nothing but the offering introspection reads them.
-    Edge = Struct.new(:from, :to, :lock, :edge_guards, :edge_record_guards,
-                      :event_names, :event_guards, :event_record_guards, keyword_init: true)
+    # layer (read by the offering introspection); the *_input_guards fields
+    # hold only the marked input layer (read by the question surface to
+    # refuse a question asked without metadata).
+    Edge = Struct.new(:from, :to, :lock, :edge_guards, :edge_record_guards, :edge_input_guards,
+                      :event_names, :event_guards, :event_record_guards, :event_input_guards,
+                      keyword_init: true)
     Callback = Struct.new(:handler, :from, :to, :event, keyword_init: true)
     CompiledGraph = Struct.new(
       :states, :initial_state, :edges, :events, :callbacks,
@@ -59,16 +62,17 @@ module Statecraft
         declared_states << { name: name.to_sym, initial: initial }
       end
 
-      def transition(from:, to:, guard: nil, record_guard: nil, lock: false)
+      def transition(from:, to:, guard: nil, record_guard: nil, input_guard: nil, lock: false)
         declared_edges << {
           from: from.to_sym, to: to.to_sym,
           guards: Array(guard), record_guards: Array(record_guard),
+          input_guards: Array(input_guard),
           lock: lock || current_event_lock,
           event: current_event_name
         }
       end
 
-      def event(name, from: nil, to: nil, guard: nil, record_guard: nil, lock: false, &declarations)
+      def event(name, from: nil, to: nil, guard: nil, record_guard: nil, input_guard: nil, lock: false, &declarations)
         name = name.to_sym
         declared_event_names << name
         if declarations
@@ -87,7 +91,8 @@ module Statecraft
 
           @statecraft_current_event = { name: name, lock: false }
           begin
-            transition(from: from, to: to, guard: guard, record_guard: record_guard, lock: lock)
+            transition(from: from, to: to, guard: guard, record_guard: record_guard,
+                       input_guard: input_guard, lock: lock)
           ensure
             @statecraft_current_event = nil
           end
@@ -107,6 +112,16 @@ module Statecraft
           )
         end
       end
+
+      # Opt-in shape strictness: with strict! the compiler additionally
+      # requires every declared state to be reachable from the initial one.
+      # Off by default — the column is written by more than the gem, so an
+      # unconnected state is legal unless the machine claims a closed graph.
+      def strict!
+        @statecraft_strict = true
+      end
+
+      def strict? = @statecraft_strict == true
 
       def states
         compiled_graph.states
@@ -197,6 +212,8 @@ module Statecraft
         events = compile_events(edges)
         resolve_symbols(edges)
         assert_record_guards_unary(edges)
+        assert_input_guards_binary(edges)
+        assert_states_reachable(states, initial, edges) if machine_class.strict?
         CompiledGraph.new(
           states: states.freeze,
           initial_state: initial,
@@ -249,9 +266,10 @@ module Statecraft
       def build_edge(declaration)
         Edge.new(
           from: declaration[:from], to: declaration[:to], lock: declaration[:lock],
-          edge_guards: declaration[:record_guards] + declaration[:guards],
+          edge_guards: declaration[:record_guards] + declaration[:guards] + declaration[:input_guards],
           edge_record_guards: declaration[:record_guards],
-          event_names: [], event_guards: {}, event_record_guards: {}
+          edge_input_guards: declaration[:input_guards],
+          event_names: [], event_guards: {}, event_record_guards: {}, event_input_guards: {}
         )
       end
 
@@ -259,16 +277,18 @@ module Statecraft
         event_name = declaration[:event]
         edge ||= Edge.new(
           from: declaration[:from], to: declaration[:to], lock: false,
-          edge_guards: [], edge_record_guards: [],
-          event_names: [], event_guards: {}, event_record_guards: {}
+          edge_guards: [], edge_record_guards: [], edge_input_guards: [],
+          event_names: [], event_guards: {}, event_record_guards: {}, event_input_guards: {}
         )
         if edge.event_names.include?(event_name)
           raise CompilationError, "event #{event_name.inspect} declares edge #{pair_name(pair)} twice"
         end
 
         edge.event_names << event_name
-        edge.event_guards[event_name] = declaration[:record_guards] + declaration[:guards]
+        edge.event_guards[event_name] = declaration[:record_guards] + declaration[:guards] +
+                                        declaration[:input_guards]
         edge.event_record_guards[event_name] = declaration[:record_guards]
+        edge.event_input_guards[event_name] = declaration[:input_guards]
         edge.lock ||= declaration[:lock]
         edge
       end
@@ -334,15 +354,62 @@ module Statecraft
         guard.respond_to?(:arity) ? guard.arity : guard.method(:call).arity
       end
 
+      # An input guard promises that its answer is meaningless without the
+      # input, and the promise is held by shape: it must accept exactly the
+      # record and the metadata, so a question asked without metadata can be
+      # refused instead of answered falsely.
+      def assert_input_guards_binary(edges)
+        edges.each_value do |edge|
+          input_guards = edge.edge_input_guards + edge.event_input_guards.values.flatten
+          input_guards.each do |guard|
+            arity = record_guard_arity(guard)
+            next if arity == 2
+
+            label = guard.is_a?(Symbol) ? guard.inspect : "the callable"
+            raise CompilationError,
+                  "input_guard #{label} must take the record and the metadata (arity 2), got arity #{arity}"
+          end
+        end
+      end
+
+      # Strict reachability is a shape check, like transitions_from: edges
+      # only, no guards. Dead ends stay legal — terminal states are the norm.
+      def assert_states_reachable(states, initial, edges)
+        unreachable = states - reachable_states(initial, edges)
+        return if unreachable.empty?
+
+        raise CompilationError,
+              "strict!: unreachable from the initial #{initial.inspect}: " \
+              "#{unreachable.map(&:inspect).join(", ")} — connect with edges or drop strict!"
+      end
+
+      def reachable_states(initial, edges)
+        reached = [initial]
+        queue = [initial]
+        until queue.empty?
+          from = queue.shift
+          edges.each_key do |(edge_from, edge_to)|
+            next if edge_from != from || reached.include?(edge_to)
+
+            reached << edge_to
+            queue << edge_to
+          end
+        end
+        reached
+      end
+
       def deep_freeze_edges(edges)
         edges.each_value do |edge|
           edge.edge_guards.freeze
           edge.edge_record_guards.freeze
+          edge.edge_input_guards.freeze
           edge.event_names.freeze
           edge.event_guards.each_value(&:freeze)
           edge.event_guards.freeze
           edge.event_record_guards.each_value(&:freeze)
           edge.event_record_guards.freeze
+          edge.event_input_guards.each_value(&:freeze)
+          edge.event_input_guards.freeze
           edge.freeze
         end
         edges.freeze

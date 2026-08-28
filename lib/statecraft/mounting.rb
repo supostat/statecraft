@@ -183,7 +183,9 @@ module Statecraft
             define_method(event_name) do |metadata: {}, seen: nil|
               fire(event_name, metadata: metadata, seen: seen)
             end
-            define_method("may_#{event_name}?") { |metadata: {}| can_fire?(event_name, metadata: metadata) }
+            define_method("may_#{event_name}?") do |metadata: Metadata::OMITTED|
+              can_fire?(event_name, metadata: metadata)
+            end
           end
         end
         model.include(verbs)

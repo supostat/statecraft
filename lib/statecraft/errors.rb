@@ -139,4 +139,21 @@ module Statecraft
             "make the log model inherit from the model's connection-owning ancestor")
     end
   end
+
+  # A question (can_fire?, may_*?, available_*) was asked without metadata
+  # while an input_guard stands on the consulted path — its answer without
+  # the input would be a false "no", so the question refuses loudly instead.
+  # An explicit `metadata: {}` states "my input is empty" and is legal.
+  class MetadataRequired < Error
+    attr_reader :record, :question, :guards
+
+    def initialize(record:, question:, guards:)
+      @record = record
+      @question = question
+      @guards = guards
+      super("#{question} on #{record.class.name} consults input guards " \
+            "#{guards.map(&:inspect).join(", ")} — pass metadata: to answer with input " \
+            "(an explicit metadata: {} means the input is empty)")
+    end
+  end
 end

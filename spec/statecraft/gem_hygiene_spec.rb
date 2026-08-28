@@ -58,7 +58,8 @@ RSpec.describe "gem hygiene" do
       Statecraft::ChainDepthExceeded,
       Statecraft::AlreadyMounted,
       Statecraft::CompositePrimaryKeyUnsupported,
-      Statecraft::ConnectionMismatch
+      Statecraft::ConnectionMismatch,
+      Statecraft::MetadataRequired
     ]
 
     error_classes.each do |error_class|

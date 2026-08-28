@@ -287,4 +287,88 @@ RSpec.describe "introspection" do
       end
     end
   end
+
+  describe "input guards on the question surface" do
+    def define_input_guarded_order
+      stub_const("InputFlow", Class.new do
+        include Statecraft::Machine
+
+        state :pending, initial: true
+        state :paid
+        state :cancelled
+
+        event :pay, from: :pending, to: :paid, input_guard: :amount_positive?
+        event :void, from: :pending, to: :cancelled
+        transition from: :cancelled, to: :pending, input_guard: :amount_positive?
+
+        def amount_positive?(_record, metadata)
+          metadata["amount"].to_i.positive?
+        end
+      end)
+      stub_const("Order", Class.new(ActiveRecord::Base) { self.table_name = "orders" })
+      stub_const("OrderTransition", Class.new(ActiveRecord::Base) do
+        self.table_name = "order_transitions"
+
+        def readonly? = persisted?
+      end)
+      Order.state_machine(InputFlow)
+    end
+
+    it "refuses a bare can_fire? naming the guard and the recipe" do
+      define_input_guarded_order
+      order = Order.create!
+      expect { order.can_fire?(:pay) }.to raise_error(Statecraft::MetadataRequired) do |error|
+        expect(error.guards).to eq([:amount_positive?])
+        expect(error.message).to include("can_fire?(:pay) on Order consults input guards :amount_positive?")
+        expect(error.message).to include("an explicit metadata: {} means the input is empty")
+      end
+    end
+
+    it "accepts an explicit empty hash as 'my input is empty'" do
+      define_input_guarded_order
+      order = Order.create!
+      expect(order.can_fire?(:pay, metadata: {})).to be(false)
+      expect(order.can_fire?(:pay, metadata: { amount: 5 })).to be(true)
+    end
+
+    it "answers false about an unknown event before demanding metadata" do
+      define_input_guarded_order
+      expect(Order.create!.can_fire?(:ghost)).to be(false)
+    end
+
+    it "leaves a bare question about an unmarked path untouched" do
+      define_input_guarded_order
+      order = Order.create!
+      expect(order.can_fire?(:void)).to be(true)
+    end
+
+    it "refuses bare enumerations that would consult the marked guard" do
+      define_input_guarded_order
+      order = Order.create!
+      expect { order.available_events }.to raise_error(Statecraft::MetadataRequired)
+      expect { order.available_transitions }.to raise_error(Statecraft::MetadataRequired)
+      expect(order.available_events(metadata: {})).to eq([:void])
+    end
+
+    it "does not demand metadata once no marked guard stands on the path" do
+      define_input_guarded_order
+      order = Order.create!(state: "paid")
+      expect(order.available_events).to eq([])
+      expect(order.available_transitions).to eq([])
+    end
+
+    it "counts an edge-level input guard on the direct path too" do
+      define_input_guarded_order
+      order = Order.create!(state: "cancelled")
+      expect { order.available_transitions }.to raise_error(Statecraft::MetadataRequired)
+      expect(order.available_transitions(metadata: { amount: 5 }).map(&:to)).to eq([:pending])
+    end
+
+    it "keeps execution unchanged: a bare call is an empty input, refused by the guard" do
+      define_input_guarded_order
+      order = Order.create!
+      expect { order.fire!(:pay) }.to raise_error(Statecraft::GuardFailed, /amount_positive?/)
+      expect(order.fire!(:pay, metadata: { amount: 5 })).to be_a(OrderTransition)
+    end
+  end
 end
