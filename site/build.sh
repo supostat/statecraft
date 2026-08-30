@@ -32,6 +32,14 @@ for required in og:title og:description og:image twitter:card rel=\"canonical\" 
   fi
 done
 
+# The badge is a claim about the published gem, and it has gone stale twice
+# already — once at 0.5.0, once at 0.7.1. Tie it to the single source of
+# truth so a version bump cannot leave the landing behind again.
+version=$(sed -n 's/.*VERSION = "\(.*\)".*/\1/p' lib/statecraft/version.rb)
+[ -n "$version" ] || fail "could not read VERSION from lib/statecraft/version.rb"
+grep -q "gem v${version}<" dist/index.html ||
+  fail "landing badge is behind gem v${version} — update the badge in site/index.html"
+
 # The compare page ships with the landing: it must name its subject and
 # stay on the shared tokens, and the landing must link to it.
 for required in statesman aasm tokens.css rel=\"canonical\"; do

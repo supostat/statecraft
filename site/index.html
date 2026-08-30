@@ -307,7 +307,7 @@
        History is an append-only log with write-once metadata.
        Built for ActiveRecord; Rails is optional.</p>
     <ul class="badges">
-      <li>MIT</li><li>gem v0.7.1</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
+      <li>MIT</li><li>gem v0.10.0</li><li>Ruby ≥ 3.3</li><li>ActiveRecord ≥ 7.2</li>
     </ul>
     <p class="cta">
       <a class="btn btn-primary" href="#quick-start">Get started</a>
@@ -567,6 +567,17 @@ puts OrderFlow.to_mermaid       <span class="tok-c"># the shape as a Mermaid dia
         <p><code>rails g statecraft:from_statesman Order</code> converts the transitions table
            you already have — history stays in place — through three production-safe
            migrations: instant DDL, a batched backfill, then indexes built concurrently.</p></div>
+      <div class="feature"><span class="tag">migration</span><h3>A door out of aasm</h3>
+        <p><code>rails g statecraft:from_aasm Order</code> reads the live machine: the real
+           event names and the state column come over, symbol guards arrive as
+           <code>record_guard:</code> delegates, and one migration adds the history aasm never
+           kept. An event that branches from one state is refused with the split recipe rather
+           than guessed at.</p></div>
+      <div class="feature"><span class="tag">strictness</span><h3>Questions that refuse to guess</h3>
+        <p>Mark a guard <code>input_guard:</code> and a prediction asked with no metadata raises
+           <code>MetadataRequired</code> naming it, instead of feeding it an empty hash and
+           answering a false "no". <code>strict!</code> adds the other half at compile time:
+           every declared state must be reachable from the initial one.</p></div>
       <div class="feature"><span class="tag">rspec</span><h3>Matchers that explain the refusal</h3>
         <p>One <code>require "statecraft/rspec"</code> and specs read the machine:
            <code>allow_event</code>, <code>refuse_event(:cancel).because_of(:guard)</code>,
