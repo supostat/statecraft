@@ -161,6 +161,36 @@ refused — the guards would be silently skipped. The escape hatch is explicit:
 still run) and records `event: nil` in the log, so audited bypasses stay
 visible.
 
+## Which rules belong in a guard
+
+Not every rule about a transition is a guard, and the three slots above are
+not an invitation to move form validation into the machine. One question
+draws the line: **would the rule still have to hold if the transition came
+from a job, a console or an ETL run instead of a form?**
+
+A rule about the record — this order is on credit, so it is not cancellable
+— always answers yes: it is a fact of the domain, it must hold for every
+caller, and it is checked inside the transaction where nothing can change
+under it. That is a `record_guard:`, and it is the case guards were built
+for.
+
+A rule that reads the input earns its place in two situations. The first is
+a rule that compares the input *against the record* — a refund amount that
+must not exceed the order total. One side of that comparison can change
+between a caller's check and the write, so the check belongs inside the
+transaction. The second is a rule protecting the log: metadata is write-once
+and the log is append-only, so a cancellation recorded without its reason
+stays useless forever. The last gate before something becomes permanent is
+worth having in the pipeline, whoever opened it.
+
+Everything else is the caller's job. A rule that reads only the input,
+never touches the record, and does not decide whether the log row makes
+sense — a minimum length, a format, a spelling — gains nothing from the
+machine but centralization, and it pays for that with a poorer contract: a
+guard answers with one boolean and a symbol, while a form object answers
+with several errors, attributed to fields, in the user's language. Validate
+the form in the form; hand the machine input it has already accepted.
+
 ## Callbacks and chains
 
 `before_transition`, `after_transition` and `after_commit` accept `from:`,
@@ -444,9 +474,18 @@ and parse them in the guard.
 
 Facts of the transition moment (a price snapshot, a rules version) are
 collected by the caller: `order.pay!(metadata: { price: order.total })`.
-There is no metadata schema mechanism — required fields are enforced by
-guards — and the shape evolves by convention: carry a `v:` key when you need
-versioned readers.
+There is no metadata schema mechanism, and the shape evolves by convention:
+carry a `v:` key when you need versioned readers.
+
+A guard can require a key, but that is a narrow licence rather than the
+schema mechanism in disguise: the reason to enforce a field here is that
+the row is about to become permanent — metadata is write-once and the log
+is append-only, so a field missing at insert time is missing for good. Note
+what such a guard does *not* buy: metadata is frozen at the pipeline
+entrance, before the transaction opens, so checking it inside a guard is no
+more atomic than checking it in the caller. Shape and format belong to
+whoever assembled the hash — see
+[which rules belong in a guard](#which-rules-belong-in-a-guard).
 
 ## Initial state is not a transition
 
